@@ -31,15 +31,15 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md' })
             />
 
             {/* Modal content */}
-            <div className={`relative w-full ${sizes[size]} card p-0 animate-fade-in`}>
+            <div className={`relative w-full ${sizes[size]} card p-0 animate-fade-in bg-white dark:bg-slate-800`}>
                 {/* Header */}
-                <div className="flex items-center justify-between p-6 border-b border-gray-100">
-                    <h2 className="text-xl font-display font-semibold text-gray-900">{title}</h2>
+                <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-slate-700">
+                    <h2 className="text-xl font-display font-semibold text-gray-900 dark:text-white">{title}</h2>
                     <button
                         onClick={onClose}
-                        className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                        className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                     >
-                        <svg className="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <svg className="w-5 h-5 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                         </svg>
                     </button>
@@ -53,3 +53,4 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md' })
         </div>
     );
 }
+

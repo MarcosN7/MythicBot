@@ -106,8 +106,8 @@ export default function StatAllocation({ stats, onStatsChange, raceBonuses = {} 
 
     return (
         <div className="animate-fade-in">
-            <h2 className="text-2xl font-display font-bold text-gray-900 mb-2">Allocate Ability Scores</h2>
-            <p className="text-gray-600 mb-8">Choose how you want to determine your stats.</p>
+            <h2 className="text-2xl font-display font-bold text-gray-900 dark:text-white mb-2">Allocate Ability Scores</h2>
+            <p className="text-gray-600 dark:text-gray-400 mb-8">Choose how you want to determine your stats.</p>
 
             {/* Method Selection */}
             <div className="grid md:grid-cols-3 gap-4 mb-8">
@@ -116,27 +116,27 @@ export default function StatAllocation({ stats, onStatsChange, raceBonuses = {} 
                         key={m.id}
                         onClick={() => handleMethodChange(m.id)}
                         className={`p-4 rounded-xl border-2 text-left transition-all ${method === m.id
-                                ? 'border-primary-500 bg-primary-50'
-                                : 'border-gray-200 hover:border-gray-300'
+                            ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/30'
+                            : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500'
                             }`}
                     >
-                        <h4 className="font-semibold text-gray-900">{m.name}</h4>
-                        <p className="text-sm text-gray-500 mt-1">{m.desc}</p>
+                        <h4 className="font-semibold text-gray-900 dark:text-white">{m.name}</h4>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{m.desc}</p>
                     </button>
                 ))}
             </div>
 
             {/* Standard Array */}
             {method === 'standard' && (
-                <div className="bg-gray-50 p-6 rounded-xl">
-                    <p className="text-sm text-gray-600 mb-4">Assign each value to an ability:</p>
+                <div className="bg-gray-50 dark:bg-slate-800 p-6 rounded-xl">
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Assign each value to an ability:</p>
                     <div className="flex flex-wrap gap-2 mb-6">
                         {STANDARD_ARRAY.map(value => {
                             const used = Object.values(standardAssignments).includes(value);
                             return (
                                 <span
                                     key={value}
-                                    className={`px-3 py-1 rounded-lg text-sm font-medium ${used ? 'bg-gray-200 text-gray-400' : 'bg-primary-100 text-primary-700'
+                                    className={`px-3 py-1 rounded-lg text-sm font-medium ${used ? 'bg-gray-200 dark:bg-slate-600 text-gray-400 dark:text-gray-500' : 'bg-primary-100 dark:bg-primary-900/50 text-primary-700 dark:text-primary-300'
                                         }`}
                                 >
                                     {value}
@@ -146,12 +146,12 @@ export default function StatAllocation({ stats, onStatsChange, raceBonuses = {} 
                     </div>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                         {ABILITIES.map(ability => (
-                            <div key={ability} className="flex items-center justify-between bg-white p-3 rounded-lg">
-                                <span className="capitalize font-medium text-gray-700">{ability}</span>
+                            <div key={ability} className="flex items-center justify-between bg-white dark:bg-slate-700 p-3 rounded-lg">
+                                <span className="capitalize font-medium text-gray-700 dark:text-gray-300">{ability}</span>
                                 <select
                                     value={standardAssignments[ability] || ''}
                                     onChange={(e) => handleStandardAssign(ability, parseInt(e.target.value))}
-                                    className="px-3 py-1 rounded-lg border border-gray-200 text-sm"
+                                    className="px-3 py-1 rounded-lg border border-gray-200 dark:border-slate-600 dark:bg-slate-600 dark:text-white text-sm"
                                 >
                                     <option value="">--</option>
                                     {STANDARD_ARRAY.filter(v =>
@@ -168,30 +168,30 @@ export default function StatAllocation({ stats, onStatsChange, raceBonuses = {} 
 
             {/* Point Buy */}
             {method === 'pointbuy' && (
-                <div className="bg-gray-50 p-6 rounded-xl">
+                <div className="bg-gray-50 dark:bg-slate-800 p-6 rounded-xl">
                     <div className="flex justify-between items-center mb-6">
-                        <p className="text-sm text-gray-600">Points remaining:</p>
-                        <span className={`px-4 py-1 rounded-full font-bold ${getPointsSpent() <= POINT_BUY_MAX ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                        <p className="text-sm text-gray-600 dark:text-gray-400">Points remaining:</p>
+                        <span className={`px-4 py-1 rounded-full font-bold ${getPointsSpent() <= POINT_BUY_MAX ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400' : 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400'
                             }`}>
                             {POINT_BUY_MAX - getPointsSpent()} / {POINT_BUY_MAX}
                         </span>
                     </div>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                         {ABILITIES.map(ability => (
-                            <div key={ability} className="flex items-center justify-between bg-white p-3 rounded-lg">
-                                <span className="capitalize font-medium text-gray-700">{ability}</span>
+                            <div key={ability} className="flex items-center justify-between bg-white dark:bg-slate-700 p-3 rounded-lg">
+                                <span className="capitalize font-medium text-gray-700 dark:text-gray-300">{ability}</span>
                                 <div className="flex items-center gap-2">
                                     <button
                                         onClick={() => handlePointBuyChange(ability, -1)}
-                                        className="w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 font-bold"
+                                        className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-slate-600 hover:bg-gray-200 dark:hover:bg-slate-500 font-bold dark:text-white"
                                         disabled={pointBuyStats[ability] <= 8}
                                     >
                                         -
                                     </button>
-                                    <span className="w-8 text-center font-semibold">{pointBuyStats[ability]}</span>
+                                    <span className="w-8 text-center font-semibold dark:text-white">{pointBuyStats[ability]}</span>
                                     <button
                                         onClick={() => handlePointBuyChange(ability, 1)}
-                                        className="w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 font-bold"
+                                        className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-slate-600 hover:bg-gray-200 dark:hover:bg-slate-500 font-bold dark:text-white"
                                         disabled={pointBuyStats[ability] >= 15}
                                     >
                                         +
@@ -205,16 +205,16 @@ export default function StatAllocation({ stats, onStatsChange, raceBonuses = {} 
 
             {/* Roll 4d6 */}
             {method === 'roll' && (
-                <div className="bg-gray-50 p-6 rounded-xl text-center">
+                <div className="bg-gray-50 dark:bg-slate-800 p-6 rounded-xl text-center">
                     <Button variant="accent" onClick={handleRollStats} className="mb-6">
                         🎲 Roll Stats
                     </Button>
                     {rolledStats && (
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                             {ABILITIES.map(ability => (
-                                <div key={ability} className="bg-white p-3 rounded-lg">
-                                    <span className="capitalize text-sm text-gray-500">{ability}</span>
-                                    <p className="text-2xl font-bold text-gray-900">{rolledStats[ability]}</p>
+                                <div key={ability} className="bg-white dark:bg-slate-700 p-3 rounded-lg">
+                                    <span className="capitalize text-sm text-gray-500 dark:text-gray-400">{ability}</span>
+                                    <p className="text-2xl font-bold text-gray-900 dark:text-white">{rolledStats[ability]}</p>
                                 </div>
                             ))}
                         </div>
@@ -223,19 +223,19 @@ export default function StatAllocation({ stats, onStatsChange, raceBonuses = {} 
             )}
 
             {/* Final Stats Preview */}
-            <div className="mt-8 p-6 bg-primary-50 rounded-xl">
-                <h3 className="font-semibold text-gray-900 mb-4">Final Ability Scores (with race bonuses)</h3>
+            <div className="mt-8 p-6 bg-primary-50 dark:bg-primary-900/30 rounded-xl">
+                <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Final Ability Scores (with race bonuses)</h3>
                 <div className="grid grid-cols-3 md:grid-cols-6 gap-4">
                     {ABILITIES.map(ability => {
                         const final = getFinalStat(ability);
                         const bonus = raceBonuses[ability] || 0;
                         return (
                             <div key={ability} className="text-center">
-                                <span className="text-xs uppercase text-gray-500">{ability.slice(0, 3)}</span>
-                                <p className="text-2xl font-bold text-gray-900">{final}</p>
-                                <span className="text-sm text-primary-600">{getModifier(final)}</span>
+                                <span className="text-xs uppercase text-gray-500 dark:text-gray-400">{ability.slice(0, 3)}</span>
+                                <p className="text-2xl font-bold text-gray-900 dark:text-white">{final}</p>
+                                <span className="text-sm text-primary-600 dark:text-primary-400">{getModifier(final)}</span>
                                 {bonus > 0 && (
-                                    <span className="text-xs text-green-600 block">+{bonus} race</span>
+                                    <span className="text-xs text-green-600 dark:text-green-400 block">+{bonus} race</span>
                                 )}
                             </div>
                         );
@@ -245,3 +245,4 @@ export default function StatAllocation({ stats, onStatsChange, raceBonuses = {} 
         </div>
     );
 }
+

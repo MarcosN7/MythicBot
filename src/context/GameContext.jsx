@@ -50,6 +50,7 @@ const initialState = {
     // Settings
     settings: {
         aiModel: 'mock',
+        darkMode: false,
         soundEnabled: true,
         animationsEnabled: true
     }

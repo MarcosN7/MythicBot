@@ -13,8 +13,8 @@ const TRAIT_SUGGESTIONS = [
 export default function PersonalityTraits({ name, personality, traits, onNameChange, onPersonalityChange, onTraitsChange }) {
     return (
         <div className="animate-fade-in">
-            <h2 className="text-2xl font-display font-bold text-gray-900 mb-2">Personality & Traits</h2>
-            <p className="text-gray-600 mb-8">Define who your character is beyond their abilities.</p>
+            <h2 className="text-2xl font-display font-bold text-gray-900 dark:text-white mb-2">Personality & Traits</h2>
+            <p className="text-gray-600 dark:text-gray-400 mb-8">Define who your character is beyond their abilities.</p>
 
             <div className="space-y-8">
                 {/* Character Name - First! */}
@@ -35,13 +35,13 @@ export default function PersonalityTraits({ name, personality, traits, onNameCha
                         rows={3}
                     />
                     <div className="mt-3">
-                        <p className="text-xs text-gray-500 mb-2">Suggestions:</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Suggestions:</p>
                         <div className="flex flex-wrap gap-2">
                             {PERSONALITY_SUGGESTIONS.map(suggestion => (
                                 <button
                                     key={suggestion}
                                     onClick={() => onPersonalityChange(personality ? `${personality}, ${suggestion.toLowerCase()}` : suggestion)}
-                                    className="px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded-full text-gray-600 transition-colors"
+                                    className="px-3 py-1 text-xs bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 rounded-full text-gray-600 dark:text-gray-300 transition-colors"
                                 >
                                     {suggestion}
                                 </button>
@@ -60,13 +60,13 @@ export default function PersonalityTraits({ name, personality, traits, onNameCha
                         rows={3}
                     />
                     <div className="mt-3">
-                        <p className="text-xs text-gray-500 mb-2">Suggestions:</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Suggestions:</p>
                         <div className="flex flex-wrap gap-2">
                             {TRAIT_SUGGESTIONS.map(suggestion => (
                                 <button
                                     key={suggestion}
                                     onClick={() => onTraitsChange(traits ? `${traits}\n• ${suggestion}` : `• ${suggestion}`)}
-                                    className="px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded-full text-gray-600 transition-colors"
+                                    className="px-3 py-1 text-xs bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 rounded-full text-gray-600 dark:text-gray-300 transition-colors"
                                 >
                                     {suggestion}
                                 </button>
@@ -78,24 +78,24 @@ export default function PersonalityTraits({ name, personality, traits, onNameCha
 
             {/* Preview */}
             {(name || personality || traits) && (
-                <div className="mt-8 p-6 bg-gray-50 rounded-xl">
-                    <h3 className="font-semibold text-gray-900 mb-3">Character Preview</h3>
+                <div className="mt-8 p-6 bg-gray-50 dark:bg-slate-800 rounded-xl">
+                    <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Character Preview</h3>
                     {name && (
                         <div className="mb-4">
-                            <span className="text-sm text-gray-500">Name:</span>
-                            <p className="text-gray-700 font-medium">{name}</p>
+                            <span className="text-sm text-gray-500 dark:text-gray-400">Name:</span>
+                            <p className="text-gray-700 dark:text-gray-300 font-medium">{name}</p>
                         </div>
                     )}
                     {personality && (
                         <div className="mb-4">
-                            <span className="text-sm text-gray-500">Personality:</span>
-                            <p className="text-gray-700">{personality}</p>
+                            <span className="text-sm text-gray-500 dark:text-gray-400">Personality:</span>
+                            <p className="text-gray-700 dark:text-gray-300">{personality}</p>
                         </div>
                     )}
                     {traits && (
                         <div>
-                            <span className="text-sm text-gray-500">Traits:</span>
-                            <p className="text-gray-700 whitespace-pre-line">{traits}</p>
+                            <span className="text-sm text-gray-500 dark:text-gray-400">Traits:</span>
+                            <p className="text-gray-700 dark:text-gray-300 whitespace-pre-line">{traits}</p>
                         </div>
                     )}
                 </div>

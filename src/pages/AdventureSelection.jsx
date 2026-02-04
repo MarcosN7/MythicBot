@@ -64,36 +64,36 @@ The choice is yours. What do you do?`,
     };
 
     return (
-        <div className="min-h-screen bg-gray-50">
+        <div className="min-h-screen bg-gray-50 dark:bg-slate-900 transition-colors">
             {/* Header */}
-            <header className="bg-white border-b border-gray-100 sticky top-0 z-30">
+            <header className="bg-white dark:bg-slate-800 border-b border-gray-100 dark:border-slate-700 sticky top-0 z-30">
                 <div className="max-w-4xl mx-auto px-6 py-4">
                     <div className="flex items-center gap-3">
                         <button
                             onClick={() => navigate('/create')}
-                            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                            className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                         >
-                            <svg className="w-5 h-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <svg className="w-5 h-5 text-gray-600 dark:text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                             </svg>
                         </button>
-                        <h1 className="font-display font-bold text-xl text-gray-900">Choose Your Adventure</h1>
+                        <h1 className="font-display font-bold text-xl text-gray-900 dark:text-white">Choose Your Adventure</h1>
                     </div>
                 </div>
             </header>
 
             {/* Character Summary */}
-            <div className="bg-primary-50 border-b border-primary-100">
+            <div className="bg-primary-50 dark:bg-primary-900/30 border-b border-primary-100 dark:border-primary-800">
                 <div className="max-w-4xl mx-auto px-6 py-4">
                     <div className="flex items-center gap-4">
                         <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary-500 to-accent-500 flex items-center justify-center text-2xl">
                             👤
                         </div>
                         <div>
-                            <p className="font-semibold text-gray-900">
+                            <p className="font-semibold text-gray-900 dark:text-white">
                                 {state.character.name || 'Your Hero'}
                             </p>
-                            <p className="text-sm text-gray-600 capitalize">
+                            <p className="text-sm text-gray-600 dark:text-gray-300 capitalize">
                                 {state.character.race} {state.character.class}
                                 {state.companions.length > 0 && ` • ${state.companions.length} companions`}
                             </p>
@@ -105,8 +105,8 @@ The choice is yours. What do you do?`,
             <main className="max-w-4xl mx-auto px-6 py-8">
                 {/* Error */}
                 {error && (
-                    <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl">
-                        <p className="text-red-700 text-sm">{error}</p>
+                    <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-xl">
+                        <p className="text-red-700 dark:text-red-400 text-sm">{error}</p>
                     </div>
                 )}
 
@@ -125,12 +125,12 @@ The choice is yours. What do you do?`,
                                 setSelectedAdventure(null);
                                 setError('');
                             }}
-                            className={`text-center cursor-pointer ${selectedType === type.id ? 'ring-2 ring-primary-500 border-primary-200' : ''
+                            className={`text-center cursor-pointer ${selectedType === type.id ? 'ring-2 ring-primary-500 border-primary-200 dark:border-primary-600' : ''
                                 }`}
                         >
                             <div className="text-4xl mb-3">{type.icon}</div>
-                            <h3 className="font-semibold text-gray-900 mb-1">{type.title}</h3>
-                            <p className="text-sm text-gray-500">{type.desc}</p>
+                            <h3 className="font-semibold text-gray-900 dark:text-white mb-1">{type.title}</h3>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">{type.desc}</p>
                         </Card>
                     ))}
                 </div>
@@ -138,7 +138,7 @@ The choice is yours. What do you do?`,
                 {/* Pre-made Adventures */}
                 {selectedType === 'premade' && (
                     <div className="animate-fade-in">
-                        <h2 className="text-xl font-display font-bold text-gray-900 mb-4">Select a Quest</h2>
+                        <h2 className="text-xl font-display font-bold text-gray-900 dark:text-white mb-4">Select a Quest</h2>
                         <div className="space-y-4">
                             {adventures.map(adventure => (
                                 <Card
@@ -146,30 +146,30 @@ The choice is yours. What do you do?`,
                                     hover
                                     onClick={() => setSelectedAdventure(adventure)}
                                     className={`cursor-pointer ${selectedAdventure?.id === adventure.id
-                                            ? 'ring-2 ring-primary-500 border-primary-200 bg-primary-50'
-                                            : ''
+                                        ? 'ring-2 ring-primary-500 border-primary-200 dark:border-primary-600 bg-primary-50 dark:bg-primary-900/30'
+                                        : ''
                                         }`}
                                 >
                                     <div className="flex items-start gap-4">
                                         <div className="text-4xl">{adventure.icon}</div>
                                         <div className="flex-1">
                                             <div className="flex items-center justify-between mb-1">
-                                                <h3 className="font-semibold text-gray-900">{adventure.name}</h3>
-                                                <span className={`text-xs px-2 py-1 rounded-full ${adventure.difficulty === 'Beginner' ? 'bg-green-100 text-green-700' :
-                                                        adventure.difficulty === 'Intermediate' ? 'bg-yellow-100 text-yellow-700' :
-                                                            'bg-red-100 text-red-700'
+                                                <h3 className="font-semibold text-gray-900 dark:text-white">{adventure.name}</h3>
+                                                <span className={`text-xs px-2 py-1 rounded-full ${adventure.difficulty === 'Beginner' ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400' :
+                                                    adventure.difficulty === 'Intermediate' ? 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-400' :
+                                                        'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400'
                                                     }`}>
                                                     {adventure.difficulty}
                                                 </span>
                                             </div>
-                                            <p className="text-sm text-gray-600 mb-2">{adventure.description}</p>
+                                            <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">{adventure.description}</p>
                                             <div className="flex flex-wrap gap-2">
                                                 {adventure.tags.map(tag => (
-                                                    <span key={tag} className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded-full">
+                                                    <span key={tag} className="text-xs px-2 py-1 bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300 rounded-full">
                                                         {tag}
                                                     </span>
                                                 ))}
-                                                <span className="text-xs text-gray-400">• {adventure.estimatedTime}</span>
+                                                <span className="text-xs text-gray-400 dark:text-gray-500">• {adventure.estimatedTime}</span>
                                             </div>
                                         </div>
                                     </div>
@@ -182,7 +182,7 @@ The choice is yours. What do you do?`,
                 {/* Custom Adventure */}
                 {selectedType === 'custom' && (
                     <div className="animate-fade-in">
-                        <h2 className="text-xl font-display font-bold text-gray-900 mb-4">Design Your Adventure</h2>
+                        <h2 className="text-xl font-display font-bold text-gray-900 dark:text-white mb-4">Design Your Adventure</h2>
                         <Card padding="lg">
                             <div className="space-y-4">
                                 <Input
@@ -198,15 +198,15 @@ The choice is yours. What do you do?`,
                                     onChange={(e) => setCustomSettings({ ...customSettings, theme: e.target.value })}
                                 />
                                 <div>
-                                    <label className="label">Difficulty</label>
+                                    <label className="label dark:text-gray-300">Difficulty</label>
                                     <div className="flex gap-2">
                                         {['easy', 'normal', 'hard'].map(diff => (
                                             <button
                                                 key={diff}
                                                 onClick={() => setCustomSettings({ ...customSettings, difficulty: diff })}
                                                 className={`flex-1 py-2 rounded-lg capitalize transition-all ${customSettings.difficulty === diff
-                                                        ? 'bg-primary-500 text-white'
-                                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                                    ? 'bg-primary-500 text-white'
+                                                    : 'bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-600'
                                                     }`}
                                             >
                                                 {diff}
@@ -228,7 +228,7 @@ The choice is yours. What do you do?`,
                 {/* Import Adventure */}
                 {selectedType === 'import' && (
                     <div className="animate-fade-in">
-                        <h2 className="text-xl font-display font-bold text-gray-900 mb-4">Import Adventure</h2>
+                        <h2 className="text-xl font-display font-bold text-gray-900 dark:text-white mb-4">Import Adventure</h2>
                         <Card padding="lg">
                             <Textarea
                                 label="Adventure Code (JSON)"
@@ -237,7 +237,7 @@ The choice is yours. What do you do?`,
                                 onChange={(e) => setImportCode(e.target.value)}
                                 rows={8}
                             />
-                            <p className="text-xs text-gray-500 mt-2">
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
                                 Paste a valid JSON adventure code to import a custom adventure.
                             </p>
                         </Card>
@@ -264,3 +264,4 @@ The choice is yours. What do you do?`,
         </div>
     );
 }
+

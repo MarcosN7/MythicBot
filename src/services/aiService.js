@@ -1,21 +1,81 @@
-// Mock AI Service for Dungeon Master responses
-// This is a placeholder for future API integration (Gemini/OpenAI)
+// AI Service for Dungeon Master responses
+// Supports: Mock AI (offline) and Google Gemini
 // Follows D&D 5e rules for when to call for rolls
 
-// === D&D ROLL RULES ===
-// Only roll when:
-// 1. There's meaningful uncertainty about the outcome
-// 2. Failure has interesting consequences
-// 3. The action is not trivial (no roll needed for walking, talking normally, etc.)
-// 4. The action is not impossible (no roll can make impossible things happen)
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import { getApiKey, hasApiKey } from './apiKeyService';
 
-// Roll types in D&D:
+// === CONFIGURATION ===
+// Gemini is now initialized dynamically with user-provided API key
+let genAI = null;
+let geminiModel = null;
+let currentApiKey = null;
+
+// Export function to check if Gemini is available
+export const isGeminiAvailable = () => {
+    // If we have a model initialized with the current key, it's available
+    if (geminiModel !== null && currentApiKey === getApiKey()) {
+        return true;
+    }
+    // If user has a key stored, try to initialize
+    if (hasApiKey()) {
+        initializeGemini(getApiKey());
+        return geminiModel !== null;
+    }
+    return false;
+};
+
+/**
+ * Initialize or reinitialize the Gemini AI with a new API key
+ * @param {string} apiKey - The API key to use
+ * @returns {boolean} Whether initialization was successful
+ */
+export const initializeGemini = (apiKey) => {
+    if (!apiKey) {
+        geminiModel = null;
+        currentApiKey = null;
+        return false;
+    }
+
+    // Skip reinitialization if key hasn't changed
+    if (apiKey === currentApiKey && geminiModel !== null) {
+        return true;
+    }
+
+    try {
+        genAI = new GoogleGenerativeAI(apiKey);
+        geminiModel = genAI.getGenerativeModel({
+            model: "gemini-2.0-flash",
+            generationConfig: {
+                temperature: 0.9,
+                topP: 0.95,
+                topK: 40,
+                maxOutputTokens: 1024,
+            }
+        });
+        currentApiKey = apiKey;
+        console.log('✅ Gemini AI initialized successfully');
+        return true;
+    } catch (error) {
+        console.error('❌ Failed to initialize Gemini:', error);
+        geminiModel = null;
+        currentApiKey = null;
+        return false;
+    }
+};
+
+// Try to initialize on load if key exists
+if (hasApiKey()) {
+    initializeGemini(getApiKey());
+}
+
+// === D&D ROLL RULES ===
 const ROLL_TYPES = {
-    ABILITY_CHECK: 'ability_check',      // Uncertain tasks (persuasion, athletics, perception)
-    ATTACK_ROLL: 'attack_roll',          // Attacking a creature
-    SAVING_THROW: 'saving_throw',        // Resisting spells, traps, poison
-    DAMAGE_ROLL: 'damage_roll',          // When an attack hits
-    NO_ROLL: 'no_roll'                   // Trivial or automatic actions
+    ABILITY_CHECK: 'ability_check',
+    ATTACK_ROLL: 'attack_roll',
+    SAVING_THROW: 'saving_throw',
+    DAMAGE_ROLL: 'damage_roll',
+    NO_ROLL: 'no_roll'
 };
 
 // Actions that typically require NO roll (trivial)
@@ -38,47 +98,7 @@ const ABILITY_CHECK_ACTIONS = {
 // Actions that require ATTACK ROLLS
 const ATTACK_KEYWORDS = ['attack', 'strike', 'hit', 'slash', 'stab', 'shoot', 'cast at', 'swing at', 'punch', 'kick'];
 
-// Actions that require SAVING THROWS (usually DM calls these)
-const SAVING_THROW_TRIGGERS = ['trap', 'poison', 'spell effect', 'dragon breath', 'falling'];
-
-const narrativeTemplates = {
-    combat: [
-        "The tension rises as combat begins!",
-        "Your opponent readies themselves for battle!",
-        "The air crackles with the promise of violence.",
-        "Steel glints in the dim light as weapons are drawn."
-    ],
-    exploration: [
-        "The world unfolds before you, rich with possibility.",
-        "Your senses take in the surroundings.",
-        "The path ahead holds both mystery and danger.",
-        "Adventure beckons from every shadow."
-    ],
-    interaction: [
-        "Eyes meet as the conversation begins.",
-        "Words carry weight in this moment.",
-        "The social dance of dialogue commences.",
-        "Every word could change your fate."
-    ],
-    trivial: [
-        "You do so without difficulty.",
-        "A simple matter, easily accomplished.",
-        "You complete the action with ease.",
-        "No challenge presents itself."
-    ],
-    success: {
-        critical: ["CRITICAL SUCCESS! A legendary feat!", "Natural 20! Extraordinary success!", "The dice gods smile upon you!"],
-        high: ["A resounding success!", "Your skill proves more than adequate!", "Fortune favors you!"],
-        normal: ["You succeed!", "Your efforts pay off!", "It works!"]
-    },
-    failure: {
-        fumble: ["CRITICAL FAILURE! Something goes terribly wrong!", "Natural 1! Disaster strikes!", "The worst possible outcome!"],
-        low: ["You fail, and it's not close.", "Your attempt falls short.", "Things don't go as planned."],
-        barely: ["So close, yet not quite enough.", "You just miss the mark.", "Almost, but not quite."]
-    }
-};
-
-// Companion dialogue templates based on personality and situation
+// Companion dialogue templates for fallback/offline mode
 const companionDialogues = {
     combat: {
         Cheerful: ["Let's show them what we've got!", "This is exciting!", "We can do this, team!"],
@@ -148,33 +168,24 @@ const getRandomElement = (arr) => arr[Math.floor(Math.random() * arr.length)];
 const analyzeAction = (action) => {
     const lowerAction = action.toLowerCase().trim();
 
-    // Check if it's a trivial action (no roll needed)
     for (const trivial of TRIVIAL_ACTIONS) {
         if (lowerAction.startsWith(trivial) || lowerAction === trivial) {
-            return {
-                requiresRoll: false,
-                rollType: ROLL_TYPES.NO_ROLL,
-                actionType: 'trivial',
-                reason: 'This action has no meaningful risk of failure.'
-            };
+            return { requiresRoll: false, rollType: ROLL_TYPES.NO_ROLL, actionType: 'trivial' };
         }
     }
 
-    // Check if it's an attack
     for (const keyword of ATTACK_KEYWORDS) {
         if (lowerAction.includes(keyword)) {
             return {
                 requiresRoll: true,
                 rollType: ROLL_TYPES.ATTACK_ROLL,
                 actionType: 'combat',
-                ability: 'strength', // or dexterity for ranged
-                dc: 12 + Math.floor(Math.random() * 6), // Random AC 12-17
-                reason: 'Attack rolls determine if you hit your target.'
+                ability: 'strength',
+                dc: 12 + Math.floor(Math.random() * 6)
             };
         }
     }
 
-    // Check for ability checks
     for (const [ability, keywords] of Object.entries(ABILITY_CHECK_ACTIONS)) {
         for (const keyword of keywords) {
             if (lowerAction.includes(keyword)) {
@@ -183,77 +194,39 @@ const analyzeAction = (action) => {
                     rollType: ROLL_TYPES.ABILITY_CHECK,
                     actionType: lowerAction.includes('sneak') || lowerAction.includes('hide') ? 'exploration' : 'interaction',
                     ability: ability,
-                    dc: 10 + Math.floor(Math.random() * 8), // DC 10-17
-                    reason: `${ability.charAt(0).toUpperCase() + ability.slice(1)} check required for uncertain outcome.`
+                    dc: 10 + Math.floor(Math.random() * 8)
                 };
             }
         }
     }
 
-    // Check for interaction that might need persuasion
     if (lowerAction.includes('ask') || lowerAction.includes('talk') || lowerAction.includes('speak')) {
-        // Talking normally doesn't require a roll, but persuading does
         if (lowerAction.includes('convince') || lowerAction.includes('persuade') || lowerAction.includes('lie')) {
-            return {
-                requiresRoll: true,
-                rollType: ROLL_TYPES.ABILITY_CHECK,
-                actionType: 'interaction',
-                ability: 'charisma',
-                dc: 12 + Math.floor(Math.random() * 6),
-                reason: 'Charisma check needed to influence this NPC.'
-            };
+            return { requiresRoll: true, rollType: ROLL_TYPES.ABILITY_CHECK, actionType: 'interaction', ability: 'charisma', dc: 12 + Math.floor(Math.random() * 6) };
         }
-        return {
-            requiresRoll: false,
-            rollType: ROLL_TYPES.NO_ROLL,
-            actionType: 'interaction',
-            reason: 'Normal conversation does not require a roll.'
-        };
+        return { requiresRoll: false, rollType: ROLL_TYPES.NO_ROLL, actionType: 'interaction' };
     }
 
-    // Default: exploration with possible perception/investigation check
     if (lowerAction.includes('search') || lowerAction.includes('find') || lowerAction.includes('discover')) {
-        return {
-            requiresRoll: true,
-            rollType: ROLL_TYPES.ABILITY_CHECK,
-            actionType: 'exploration',
-            ability: 'wisdom',
-            dc: 10 + Math.floor(Math.random() * 6),
-            reason: 'Perception/Investigation check to find hidden things.'
-        };
+        return { requiresRoll: true, rollType: ROLL_TYPES.ABILITY_CHECK, actionType: 'exploration', ability: 'wisdom', dc: 10 + Math.floor(Math.random() * 6) };
     }
 
-    // Exploration without roll for simple movement/observation
-    return {
-        requiresRoll: false,
-        rollType: ROLL_TYPES.NO_ROLL,
-        actionType: 'exploration',
-        reason: 'This action succeeds automatically.'
-    };
+    return { requiresRoll: false, rollType: ROLL_TYPES.NO_ROLL, actionType: 'exploration' };
 };
 
-// Calculate modifier from ability score
 const getAbilityModifier = (score) => Math.floor((score - 10) / 2);
 
-// Generate companion responses based on context
+// Generate companion responses (for fallback)
 const generateCompanionResponses = (companions, actionType, isSuccess) => {
     if (!companions || companions.length === 0) return [];
-
     const responses = [];
-    const situationType = isSuccess === null ? 'trivial' :
-        isSuccess ? 'success' : 'failure';
-
-    // Each companion has a chance to speak (40% for trivial, 70% for success/failure)
+    const situationType = isSuccess === null ? 'trivial' : isSuccess ? 'success' : 'failure';
     const speakChance = situationType === 'trivial' ? 0.3 : 0.6;
 
     companions.forEach(companion => {
         if (Math.random() < speakChance && companion.name) {
             const personality = companion.personality || 'Cheerful';
-            const dialoguePool = companionDialogues[situationType]?.[personality] ||
-                companionDialogues[actionType]?.[personality] ||
-                companionDialogues.trivial?.['Cheerful'] ||
-                ["..."];
-
+            const dialoguePool = companionDialogues[situationType]?.[personality] || companionDialogues.trivial?.['Cheerful'] || ["..."];
             responses.push({
                 companionName: companion.name,
                 companionRace: companion.race,
@@ -263,113 +236,241 @@ const generateCompanionResponses = (companions, actionType, isSuccess) => {
             });
         }
     });
-
     return responses;
 };
 
-const generateContextualResponse = (action, character, companions, previousTurns) => {
+// === GEMINI AI RESPONSE ===
+const generateGeminiResponse = async (context) => {
+    const { character, companions, previousTurns, action } = context;
+
+    // Analyze action for roll requirements
     const analysis = analyzeAction(action);
-    const { requiresRoll, rollType, actionType, ability, dc, reason } = analysis;
+    let roll = null;
+    let modifier = 0;
+    let total = 0;
+    let isSuccess = null;
+
+    if (analysis.requiresRoll) {
+        roll = Math.floor(Math.random() * 20) + 1;
+        if (character?.stats && analysis.ability) {
+            modifier = getAbilityModifier(character.stats[analysis.ability] || 10);
+        }
+        total = roll + modifier;
+        isSuccess = roll === 20 ? true : roll === 1 ? false : total >= analysis.dc;
+    }
+
+    // Build context for Gemini
+    const companionList = companions && companions.length > 0
+        ? companions.map(c => `${c.name} (${c.race} ${c.class}, ${c.personality} personality)`).join(', ')
+        : 'None';
+
+    const recentHistory = previousTurns.slice(-6).map(turn =>
+        `${turn.type === 'user' ? 'PLAYER' : 'DM'}: ${turn.text}`
+    ).join('\n');
+
+    const rollInfo = analysis.requiresRoll
+        ? `\n\n**DICE ROLL RESULT**: The player rolled a d20 and got ${roll}${modifier >= 0 ? '+' : ''}${modifier} = ${total} against DC ${analysis.dc}. Result: ${isSuccess ? 'SUCCESS' : 'FAILURE'}${roll === 20 ? ' (CRITICAL SUCCESS!)' : roll === 1 ? ' (CRITICAL FAILURE!)' : ''}`
+        : '\n\n**NO ROLL NEEDED**: This is a trivial action that succeeds automatically.';
+
+    const prompt = `You are an exceptional Dungeon Master running a D&D 5th Edition campaign. You are a master storyteller who brings worlds to life with vivid prose, dramatic tension, and unforgettable moments.
+
+## YOUR DUNGEON MASTER PHILOSOPHY
+- **Immersion First**: Make the player FEEL like they are in the world. Engage all five senses.
+- **Dramatic Storytelling**: Build tension, use pacing, create memorable moments and callbacks to previous events.
+- **Player Agency**: Honor player choices. Their actions matter and have consequences.
+- **D&D 5e Authenticity**: Follow the rules, but remember: narrative trumps mechanics. Rule of Cool applies.
+- **Living World**: NPCs have goals, fears, and motivations. The world moves even when the player doesn't.
+
+## D&D 5E RULES TO FOLLOW
+- Natural 20 = Critical Success (describe something EPIC happening)
+- Natural 1 = Critical Failure (describe a dramatic mishap, but keep it fun, not punishing)
+- Skills matter: Proficiency makes characters shine in their expertise
+- Class features matter: Reference class abilities when relevant (a Rogue's cunning, a Paladin's conviction)
+- Race traits matter: Include racial characteristics in your descriptions
+- Spells have verbal, somatic, or material components - describe the casting!
+- Combat is tactical: describe positioning, cover, terrain advantages
+
+## STORYTELLING TECHNIQUES
+- **Start in action**: Hook immediately with sensory details
+- **Show, don't tell**: "Sweat beads on his brow as he grips his sword tighter" not "He looks nervous"
+- **The Rule of Three**: Use three sensory details per scene (sight, sound, smell/touch/taste)
+- **Callbacks**: Reference earlier events, choices, and character details
+- **Foreshadowing**: Plant seeds for future events when appropriate
+- **Cliffhangers**: End sequences with tension or intrigue
+
+## ENVIRONMENTAL STORYTELLING
+Always include atmospheric details:
+- **Weather**: Rain pattering on stone, oppressive heat, biting cold, mist curling
+- **Sounds**: Distant thunder, creaking floorboards, whispered voices, clashing steel
+- **Smells**: Torch smoke, damp earth, exotic spices, the copper tang of blood
+- **Textures**: Rough-hewn stone, silk tapestries, gnarled roots, cold iron
+- **Light**: Flickering candlelight, moonbeams through clouds, phosphorescent fungi, utter darkness
+
+## CURRENT PARTY
+**Player Character**: ${character?.name || 'Adventurer'}, a ${character?.race || 'human'} ${character?.class || 'fighter'}
+- Stats: STR ${character?.stats?.strength || 10}, DEX ${character?.stats?.dexterity || 10}, CON ${character?.stats?.constitution || 10}, INT ${character?.stats?.intelligence || 10}, WIS ${character?.stats?.wisdom || 10}, CHA ${character?.stats?.charisma || 10}
+- Personality: ${character?.personality || 'Brave adventurer'}
+- Background: ${character?.background || 'Unknown origins'}
+
+**Companions**: ${companionList}
+When companions speak, their dialogue should:
+- Reflect their personality trait (a Sarcastic character snipes, a Cheerful one encourages)
+- Show their class background (a Wizard references arcana, a Fighter discusses tactics)
+- React authentically to success/failure (celebrate victories, console after setbacks)
+- Have their own opinions that sometimes differ from the player's choices
+
+## RECENT EVENTS
+${recentHistory || 'The adventure has just begun.'}
+
+## CURRENT ACTION
+The player says: "${action}"
+${rollInfo}
+
+## YOUR RESPONSE GUIDELINES
+Write a cinematic response as the Dungeon Master (2-4 paragraphs). Structure your response:
+
+1. **IMMEDIATE REACTION**: What happens in the moment? Describe the action with sensory detail.
+2. **CONSEQUENCES**: How does the world respond? NPCs react, environment changes.
+3. **COMPANION MOMENTS**: If companions are present, have 1-2 react with personality-fitting dialogue.
+4. **FORWARD MOMENTUM**: End with a hook - a new discovery, approaching danger, or a choice to make.
+
+Format companion dialogue: **CompanionName**: "Their dialogue here"
+
+IMPORTANT RULES:
+- Do NOT include dice roll numbers - the UI displays those separately
+- Do NOT break character or reference game mechanics directly
+- Do NOT railroad - present options, not destinations
+- BE CREATIVE - surprise the player with unexpected but logical developments
+- STAY CONCISE - quality over quantity, 2-4 punchy paragraphs max`;
+
+    try {
+        const result = await geminiModel.generateContent(prompt);
+        const response = await result.response;
+        const text = response.text();
+
+        // Extract companion responses from the text (simple pattern matching)
+        const companionResponses = [];
+        if (companions && companions.length > 0) {
+            companions.forEach(companion => {
+                const pattern = new RegExp(`\\*\\*${companion.name}\\*\\*:\\s*"([^"]+)"`, 'gi');
+                const match = pattern.exec(text);
+                if (match) {
+                    companionResponses.push({
+                        companionName: companion.name,
+                        companionRace: companion.race,
+                        companionClass: companion.class,
+                        personality: companion.personality || 'Cheerful',
+                        text: match[1]
+                    });
+                }
+            });
+        }
+
+        // Clean the text by removing companion dialogue markers for main message
+        let cleanedText = text;
+        companions?.forEach(companion => {
+            cleanedText = cleanedText.replace(new RegExp(`\\*\\*${companion.name}\\*\\*:\\s*"[^"]+"\\s*`, 'gi'), '');
+        });
+
+        return {
+            text: cleanedText.trim(),
+            roll: roll,
+            rollType: analysis.rollType,
+            actionType: analysis.actionType,
+            isSuccess: analysis.requiresRoll ? isSuccess : true,
+            requiresRoll: analysis.requiresRoll,
+            companionResponses: companionResponses.length > 0 ? companionResponses : generateCompanionResponses(companions, analysis.actionType, isSuccess)
+        };
+    } catch (error) {
+        console.error('Gemini API error:', error);
+        // Fall back to mock response
+        return generateMockResponse(context);
+    }
+};
+
+// === MOCK AI RESPONSE (Fallback) ===
+const narrativeTemplates = {
+    combat: ["The tension rises as combat begins!", "Your opponent readies themselves for battle!", "Steel glints in the dim light."],
+    exploration: ["The world unfolds before you.", "Your senses take in the surroundings.", "Adventure beckons."],
+    interaction: ["Eyes meet as conversation begins.", "Words carry weight in this moment.", "Every word could change your fate."],
+    trivial: ["You do so without difficulty.", "A simple matter.", "No challenge presents itself."],
+    success: { critical: ["CRITICAL SUCCESS!"], high: ["A resounding success!"], normal: ["You succeed!"] },
+    failure: { fumble: ["CRITICAL FAILURE!"], low: ["You fail."], barely: ["So close, yet not enough."] }
+};
+
+const generateMockResponse = (context) => {
+    const { character, companions, action } = context;
+    const analysis = analyzeAction(action);
 
     let roll = null;
     let isSuccess = null;
     let responseText = '';
 
-    // Set scene with narrative
-    const intro = getRandomElement(narrativeTemplates[actionType] || narrativeTemplates.exploration);
+    const intro = getRandomElement(narrativeTemplates[analysis.actionType] || narrativeTemplates.exploration);
 
-    if (!requiresRoll) {
-        // No roll needed - automatic success for trivial actions
-        const trivialOutcome = getRandomElement(narrativeTemplates.trivial);
-        responseText = `${intro}
-
-You: "${action}"
-
-${trivialOutcome}
-
-What would you like to do next?`;
-
-        isSuccess = true; // Trivial actions always succeed
+    if (!analysis.requiresRoll) {
+        responseText = `${intro}\n\nYou: "${action}"\n\n${getRandomElement(narrativeTemplates.trivial)}\n\nWhat would you like to do next?`;
+        isSuccess = true;
     } else {
-        // Roll required!
         roll = Math.floor(Math.random() * 20) + 1;
-
-        // Add ability modifier if character has stats
         let modifier = 0;
-        if (character?.stats && ability) {
-            modifier = getAbilityModifier(character.stats[ability] || 10);
+        if (character?.stats && analysis.ability) {
+            modifier = getAbilityModifier(character.stats[analysis.ability] || 10);
         }
-
         const total = roll + modifier;
-        isSuccess = total >= dc;
+        isSuccess = roll === 20 ? true : roll === 1 ? false : total >= analysis.dc;
 
-        // Determine success/failure narrative
         let outcome;
-        if (roll === 20) {
-            outcome = getRandomElement(narrativeTemplates.success.critical);
-            isSuccess = true; // Natural 20 always succeeds
-        } else if (roll === 1) {
-            outcome = getRandomElement(narrativeTemplates.failure.fumble);
-            isSuccess = false; // Natural 1 always fails
-        } else if (isSuccess) {
-            outcome = total >= dc + 5 ?
-                getRandomElement(narrativeTemplates.success.high) :
-                getRandomElement(narrativeTemplates.success.normal);
-        } else {
-            outcome = total <= dc - 5 ?
-                getRandomElement(narrativeTemplates.failure.low) :
-                getRandomElement(narrativeTemplates.failure.barely);
-        }
+        if (roll === 20) outcome = getRandomElement(narrativeTemplates.success.critical);
+        else if (roll === 1) outcome = getRandomElement(narrativeTemplates.failure.fumble);
+        else if (isSuccess) outcome = getRandomElement(narrativeTemplates.success.normal);
+        else outcome = getRandomElement(narrativeTemplates.failure.barely);
 
-        const rollTypeLabel = rollType === ROLL_TYPES.ATTACK_ROLL ? 'Attack Roll' :
-            rollType === ROLL_TYPES.SAVING_THROW ? 'Saving Throw' :
-                `${ability?.charAt(0).toUpperCase()}${ability?.slice(1)} Check`;
+        const rollLabel = analysis.rollType === ROLL_TYPES.ATTACK_ROLL ? 'Attack Roll' : `${analysis.ability?.charAt(0).toUpperCase()}${analysis.ability?.slice(1)} Check`;
 
-        responseText = `${intro}
-
-You attempt: "${action}"
-
-**${rollTypeLabel}** (DC ${dc})
-🎲 Roll: ${roll}${modifier >= 0 ? ' + ' : ' - '}${Math.abs(modifier)} = **${total}**
-
-${outcome}
-
-What do you do next?`;
+        responseText = `${intro}\n\nYou attempt: "${action}"\n\n**${rollLabel}** (DC ${analysis.dc})\n🎲 Roll: ${roll}${modifier >= 0 ? ' + ' : ' - '}${Math.abs(modifier)} = **${total}**\n\n${outcome}\n\nWhat do you do next?`;
     }
-
-    // Generate companion responses
-    const companionResponses = generateCompanionResponses(companions, actionType, isSuccess);
 
     return {
         text: responseText,
         roll: roll,
-        rollType: rollType,
-        actionType: actionType,
+        rollType: analysis.rollType,
+        actionType: analysis.actionType,
         isSuccess: isSuccess,
-        requiresRoll: requiresRoll,
-        companionResponses: companionResponses
+        requiresRoll: analysis.requiresRoll,
+        companionResponses: generateCompanionResponses(companions, analysis.actionType, isSuccess)
     };
 };
 
-// Simulated delay to mimic API call
+// Simulated delay
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
  * Generate a Dungeon Master response
- * @param {Object} context - The game context
- * @param {Object} context.character - Character data
- * @param {Array} context.companions - Companion data
- * @param {Array} context.previousTurns - Previous chat history
- * @param {string} context.action - The player's action
- * @returns {Promise<Object>} - The AI response with companion dialogues
  */
-export const generateDMResponse = async (context) => {
+export const generateDMResponse = async (context, selectedModel = 'auto') => {
     const { character, companions, previousTurns, action } = context;
 
-    // Simulate API latency
-    await delay(500 + Math.random() * 1000);
+    // Determine which model to use based on user selection
+    const useGemini = selectedModel === 'gemini'
+        ? (isGeminiAvailable() && geminiModel)
+        : selectedModel === 'mock'
+            ? false
+            : (isGeminiAvailable() && geminiModel); // 'auto' mode
 
-    const response = generateContextualResponse(action, character, companions, previousTurns);
+    let response;
+    let modelUsed;
+
+    if (useGemini) {
+        console.log('🤖 Using Gemini AI...');
+        response = await generateGeminiResponse(context);
+        modelUsed = 'gemini';
+    } else {
+        console.log('📦 Using Mock AI (offline mode)...');
+        await delay(500 + Math.random() * 1000);
+        response = generateMockResponse(context);
+        modelUsed = 'mock';
+    }
 
     return {
         success: true,
@@ -381,6 +482,7 @@ export const generateDMResponse = async (context) => {
             actionType: response.actionType,
             requiresRoll: response.requiresRoll,
             isSuccess: response.isSuccess,
+            aiModel: modelUsed,
             timestamp: new Date().toISOString()
         }
     };
@@ -388,18 +490,59 @@ export const generateDMResponse = async (context) => {
 
 /**
  * Generate the opening narrative for an adventure
- * @param {Object} adventure - The adventure object
- * @param {Object} character - The player's character
- * @returns {Promise<string>} - The opening narrative
  */
-export const generateOpeningNarrative = async (adventure, character) => {
-    await delay(300);
+export const generateOpeningNarrative = async (adventure, character, selectedModel = 'auto') => {
+    // Determine which model to use
+    const useGemini = selectedModel === 'gemini'
+        ? (isGeminiAvailable() && geminiModel)
+        : selectedModel === 'mock'
+            ? false
+            : (isGeminiAvailable() && geminiModel);
 
+    if (useGemini) {
+        try {
+            const prompt = `You are an exceptional Dungeon Master beginning an epic D&D 5th Edition adventure. Create a CINEMATIC opening that will hook the player immediately.
+
+Adventure: ${adventure?.name || 'A New Beginning'}
+Setting: ${adventure?.setting || 'A fantastical realm'}
+Description: ${adventure?.description || 'An epic journey awaits'}
+
+Player Character: ${character?.name || 'A brave adventurer'}, a ${character?.race || 'human'} ${character?.class || 'fighter'}
+Personality: ${character?.personality || 'Courageous and determined'}
+Background: ${character?.background || 'Mysterious origins'}
+
+Write an epic opening narration (2-3 paragraphs) that:
+
+1. **HOOK IMMEDIATELY**: Start with action, tension, or mystery - NOT "You find yourself..."
+2. **ENGAGE ALL SENSES**: Include at least 3 sensory details (sights, sounds, smells, textures)
+3. **ESTABLISH ATMOSPHERE**: Weather, lighting, ambient sounds that set the mood
+4. **PERSONALIZE**: Reference the character's race or class in the scene naturally
+5. **HINT AT STAKES**: Something is wrong, something needs doing, danger lurks
+6. **END WITH AGENCY**: Finish with an open question or choice that demands player action
+
+STYLE GUIDELINES:
+- Use vivid, active verbs ("The wind HOWLS" not "There is wind")
+- Create immediate tension or intrigue
+- Make the world feel ALIVE and reactive
+- Avoid clichés like "a chill runs down your spine"
+- Be specific, not generic ("the iron tang of old blood" not "a bad smell")
+
+Make the player EXCITED to type their first action!`;
+
+
+            const result = await geminiModel.generateContent(prompt);
+            const response = await result.response;
+            return response.text();
+        } catch (error) {
+            console.error('Gemini opening narrative error:', error);
+        }
+    }
+
+    // Fallback to adventure's built-in narrative or default
     if (adventure && adventure.openingNarrative) {
         return adventure.openingNarrative;
     }
 
-    // Default opening for custom adventures
     return `Your adventure begins, brave ${character?.race || 'adventurer'}. The world stretches before you, full of mystery and danger.
 
 What path will you choose? What legends will you forge?
@@ -407,12 +550,12 @@ What path will you choose? What legends will you forge?
 The choice is yours. What do you do?`;
 };
 
-// Config for future API integration
+// Config for AI models - availability is now dynamic based on user's API key
 export const AI_MODELS = {
     mock: { id: 'mock', name: 'Mock AI (Offline)', available: true },
-    gemini: { id: 'gemini', name: 'Google Gemini', available: false },
+    gemini: { id: 'gemini', name: 'Google Gemini', get available() { return hasApiKey(); } },
     openai: { id: 'openai', name: 'OpenAI GPT-4', available: false }
 };
 
-export const getCurrentModel = () => AI_MODELS.mock;
+export const getCurrentModel = () => hasApiKey() ? AI_MODELS.gemini : AI_MODELS.mock;
 

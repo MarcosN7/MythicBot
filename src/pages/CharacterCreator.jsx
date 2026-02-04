@@ -225,25 +225,25 @@ export default function CharacterCreator() {
     };
 
     return (
-        <div className="min-h-screen bg-gray-50">
+        <div className="min-h-screen bg-gray-50 dark:bg-slate-900 transition-colors">
             {/* Header */}
-            <header className="bg-white border-b border-gray-100 sticky top-0 z-30">
+            <header className="bg-white dark:bg-slate-800 border-b border-gray-100 dark:border-slate-700 sticky top-0 z-30">
                 <div className="max-w-4xl mx-auto px-6 py-4">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             <button
                                 onClick={() => navigate('/')}
-                                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                                className="p-2 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                             >
-                                <svg className="w-5 h-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <svg className="w-5 h-5 text-gray-600 dark:text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                                 </svg>
                             </button>
-                            <h1 className="font-display font-bold text-xl text-gray-900">Create Character</h1>
+                            <h1 className="font-display font-bold text-xl text-gray-900 dark:text-white">Create Character</h1>
                         </div>
                         <button
                             onClick={handleSkip}
-                            className="text-sm text-gray-500 hover:text-primary-600 transition-colors"
+                            className="text-sm text-gray-500 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors"
                         >
                             Skip with Test Data
                         </button>
@@ -252,7 +252,7 @@ export default function CharacterCreator() {
             </header>
 
             {/* Progress Bar */}
-            <div className="bg-white border-b border-gray-100">
+            <div className="bg-white dark:bg-slate-800 border-b border-gray-100 dark:border-slate-700">
                 <div className="max-w-4xl mx-auto px-6 py-4">
                     <div className="flex items-center justify-between overflow-x-auto pb-2">
                         {STEPS.map((step, index) => (
@@ -267,13 +267,13 @@ export default function CharacterCreator() {
                                     {step.id < currentStep ? '✓' : step.icon}
                                 </button>
                                 {index < STEPS.length - 1 && (
-                                    <div className={`w-8 md:w-12 h-0.5 mx-1 ${step.id < currentStep ? 'bg-primary-500' : 'bg-gray-200'
+                                    <div className={`w-8 md:w-12 h-0.5 mx-1 ${step.id < currentStep ? 'bg-primary-500' : 'bg-gray-200 dark:bg-slate-600'
                                         }`} />
                                 )}
                             </div>
                         ))}
                     </div>
-                    <div className="flex justify-between mt-2 text-xs text-gray-500">
+                    <div className="flex justify-between mt-2 text-xs text-gray-500 dark:text-gray-400">
                         <span>Step {currentStep} of 8</span>
                         <span>{STEPS[currentStep - 1].name}</span>
                     </div>
@@ -284,8 +284,8 @@ export default function CharacterCreator() {
             <main className="max-w-4xl mx-auto px-6 py-8">
                 {/* Error display */}
                 {Object.keys(errors).length > 0 && (
-                    <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl">
-                        <p className="text-red-700 text-sm">
+                    <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-xl">
+                        <p className="text-red-700 dark:text-red-400 text-sm">
                             {Object.values(errors)[0]}
                         </p>
                     </div>
@@ -294,7 +294,7 @@ export default function CharacterCreator() {
                 {renderStep()}
 
                 {/* Navigation */}
-                <div className="flex items-center justify-between mt-10 pt-6 border-t border-gray-200">
+                <div className="flex items-center justify-between mt-10 pt-6 border-t border-gray-200 dark:border-slate-700">
                     <Button
                         variant="secondary"
                         onClick={handleBack}
@@ -314,3 +314,4 @@ export default function CharacterCreator() {
         </div>
     );
 }
+

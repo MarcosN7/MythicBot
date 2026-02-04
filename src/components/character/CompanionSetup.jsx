@@ -51,8 +51,8 @@ export default function CompanionSetup({ companions, onCompanionsChange }) {
 
     return (
         <div className="animate-fade-in">
-            <h2 className="text-2xl font-display font-bold text-gray-900 mb-2">Create Your Companions</h2>
-            <p className="text-gray-600 mb-8">Build your party of 3 AI companions to join you on your adventure.</p>
+            <h2 className="text-2xl font-display font-bold text-gray-900 dark:text-white mb-2">Create Your Companions</h2>
+            <p className="text-gray-600 dark:text-gray-400 mb-8">Build your party of 3 AI companions to join you on your adventure.</p>
 
             {/* Companion Tabs */}
             <div className="flex gap-2 mb-6">
@@ -65,12 +65,12 @@ export default function CompanionSetup({ companions, onCompanionsChange }) {
                             key={index}
                             onClick={() => setActiveIndex(index)}
                             className={`flex-1 p-4 rounded-xl border-2 transition-all ${activeIndex === index
-                                    ? 'border-primary-500 bg-primary-50'
-                                    : 'border-gray-200 hover:border-gray-300'
+                                ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/30'
+                                : 'border-gray-200 dark:border-slate-600 hover:border-gray-300 dark:hover:border-slate-500'
                                 }`}
                         >
                             <div className="flex items-center justify-between">
-                                <span className="font-semibold text-gray-900">
+                                <span className="font-semibold text-gray-900 dark:text-white">
                                     {companion.name || `Companion ${index + 1}`}
                                 </span>
                                 {isComplete && (
@@ -78,7 +78,7 @@ export default function CompanionSetup({ companions, onCompanionsChange }) {
                                 )}
                             </div>
                             {companion.race && companion.class && (
-                                <p className="text-xs text-gray-500 mt-1">
+                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                                     {races.find(r => r.id === companion.race)?.name} {' '}
                                     {classes.find(c => c.id === companion.class)?.name}
                                 </p>
@@ -89,9 +89,9 @@ export default function CompanionSetup({ companions, onCompanionsChange }) {
             </div>
 
             {/* Active Companion Form */}
-            <div className="bg-gray-50 p-6 rounded-xl">
+            <div className="bg-gray-50 dark:bg-slate-800 p-6 rounded-xl">
                 <div className="flex items-center justify-between mb-6">
-                    <h3 className="font-semibold text-gray-900">Companion {activeIndex + 1}</h3>
+                    <h3 className="font-semibold text-gray-900 dark:text-white">Companion {activeIndex + 1}</h3>
                     <Button variant="secondary" size="sm" onClick={() => randomizeCompanion(activeIndex)}>
                         🎲 Randomize
                     </Button>
@@ -108,7 +108,7 @@ export default function CompanionSetup({ companions, onCompanionsChange }) {
                         />
                         <button
                             onClick={() => randomizeName(activeIndex)}
-                            className="self-end px-4 py-3 bg-gray-200 hover:bg-gray-300 rounded-xl transition-colors"
+                            className="self-end px-4 py-3 bg-gray-200 dark:bg-slate-600 hover:bg-gray-300 dark:hover:bg-slate-500 rounded-xl transition-colors dark:text-white"
                             title="Random name"
                         >
                             🎲
@@ -116,15 +116,15 @@ export default function CompanionSetup({ companions, onCompanionsChange }) {
                     </div>
 
                     <div>
-                        <label className="label">Race</label>
+                        <label className="label dark:text-gray-300">Race</label>
                         <div className="grid grid-cols-4 gap-2">
                             {races.slice(0, 8).map(race => (
                                 <button
                                     key={race.id}
                                     onClick={() => updateCompanion(activeIndex, 'race', race.id)}
                                     className={`p-2 rounded-lg text-center transition-all ${currentCompanions[activeIndex].race === race.id
-                                            ? 'bg-primary-500 text-white'
-                                            : 'bg-white border border-gray-200 hover:border-primary-300'
+                                        ? 'bg-primary-500 text-white'
+                                        : 'bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 hover:border-primary-300 dark:text-white'
                                         }`}
                                 >
                                     <span className="text-xl">{race.icon}</span>
@@ -135,15 +135,15 @@ export default function CompanionSetup({ companions, onCompanionsChange }) {
                     </div>
 
                     <div>
-                        <label className="label">Class</label>
+                        <label className="label dark:text-gray-300">Class</label>
                         <div className="grid grid-cols-4 gap-2">
                             {classes.map(cls => (
                                 <button
                                     key={cls.id}
                                     onClick={() => updateCompanion(activeIndex, 'class', cls.id)}
                                     className={`p-2 rounded-lg text-center transition-all ${currentCompanions[activeIndex].class === cls.id
-                                            ? 'bg-primary-500 text-white'
-                                            : 'bg-white border border-gray-200 hover:border-primary-300'
+                                        ? 'bg-primary-500 text-white'
+                                        : 'bg-white dark:bg-slate-700 border border-gray-200 dark:border-slate-600 hover:border-primary-300 dark:text-white'
                                         }`}
                                 >
                                     <span className="text-xl">{cls.icon}</span>
@@ -163,8 +163,8 @@ export default function CompanionSetup({ companions, onCompanionsChange }) {
             </div>
 
             {/* Summary */}
-            <div className="mt-6 p-4 bg-primary-50 rounded-xl">
-                <h4 className="font-medium text-gray-900 mb-3">Your Party</h4>
+            <div className="mt-6 p-4 bg-primary-50 dark:bg-primary-900/30 rounded-xl">
+                <h4 className="font-medium text-gray-900 dark:text-white mb-3">Your Party</h4>
                 <div className="flex gap-4">
                     {currentCompanions.map((companion, index) => {
                         const race = races.find(r => r.id === companion.race);
@@ -172,8 +172,8 @@ export default function CompanionSetup({ companions, onCompanionsChange }) {
                         return (
                             <div key={index} className="flex-1 text-center">
                                 <div className="text-3xl mb-1">{race?.icon || '❓'}</div>
-                                <p className="font-medium text-sm">{companion.name || '???'}</p>
-                                <p className="text-xs text-gray-500">{cls?.name || 'No class'}</p>
+                                <p className="font-medium text-sm dark:text-white">{companion.name || '???'}</p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">{cls?.name || 'No class'}</p>
                             </div>
                         );
                     })}
