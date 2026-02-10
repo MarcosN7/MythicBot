@@ -8,6 +8,7 @@ import CharacterSheet from '../components/game/CharacterSheet';
 import Inventory from '../components/game/Inventory';
 import DiceRoller from '../components/game/DiceRoller';
 import SettingsModal from '../components/game/SettingsModal';
+import { logError, logEvent } from '../services/telemetry';
 
 export default function GameInterface() {
     const navigate = useNavigate();
@@ -25,6 +26,12 @@ export default function GameInterface() {
     const [showSettings, setShowSettings] = useState(false);
     const [sidebarTab, setSidebarTab] = useState('character');
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+    const isGameStarted = state.gameStarted;
+    const activeAdventure = state.adventure;
+    const character = state.character;
+    const aiModel = state.settings.aiModel;
+    const chatHistoryLength = state.chatHistory.length;
 
     // Initialize sound service and sync settings
     useEffect(() => {
@@ -46,9 +53,9 @@ export default function GameInterface() {
     // Generate opening narrative
     useEffect(() => {
         const initGame = async () => {
-            if (state.gameStarted && state.chatHistory.length === 0 && state.adventure) {
+            if (isGameStarted && chatHistoryLength === 0 && activeAdventure) {
                 setIsLoading(true);
-                const opening = await generateOpeningNarrative(state.adventure, state.character, state.settings.aiModel);
+                const opening = await generateOpeningNarrative(activeAdventure, character, aiModel);
                 addChatMessage({
                     type: 'ai',
                     text: opening,
@@ -59,7 +66,7 @@ export default function GameInterface() {
             }
         };
         initGame();
-    }, [state.gameStarted, state.adventure]);
+    }, [isGameStarted, chatHistoryLength, activeAdventure, character, aiModel, addChatMessage]);
 
     const handleSendMessage = async (text) => {
         // Play click sound for user action
@@ -108,6 +115,7 @@ export default function GameInterface() {
                 companionMessages: response.companionResponses || []
             });
         } catch (error) {
+            logError('dm_response_failed_ui', error, { aiModel: state.settings.aiModel });
             addChatMessage({
                 type: 'ai',
                 text: 'The Dungeon Master pauses... (An error occurred. Please try again.)',
@@ -118,6 +126,7 @@ export default function GameInterface() {
     };
 
     const handleResetGame = () => {
+        logEvent('game_reset', { adventure: state.adventure?.name });
         resetGame();
         navigate('/');
     };

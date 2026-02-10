@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import Button from './Button';
-import { validateApiKey, setApiKey, getApiKey, clearApiKey, hasApiKey } from '../../services/apiKeyService';
+import { validateApiKey, setApiKey, clearApiKey, hasApiKey } from '../../services/apiKeyService';
 
 export default function ApiKeyModal({ isOpen, onClose, onKeySet }) {
     const [apiKey, setApiKeyValue] = useState('');
@@ -107,7 +107,7 @@ export default function ApiKeyModal({ isOpen, onClose, onKeySet }) {
                             onClick={handleClearKey}
                             className="text-sm text-red-600 dark:text-red-400 hover:underline"
                         >
-                            Clear key
+                            Rotate key
                         </button>
                     </div>
                 )}
@@ -194,7 +194,7 @@ export default function ApiKeyModal({ isOpen, onClose, onKeySet }) {
 
                 {/* Security Note */}
                 <p className="mt-4 text-xs text-gray-500 dark:text-gray-400 text-center">
-                    🔒 Your key is stored locally in your browser only. It never leaves your device.
+                    🔒 Your key is stored locally in your browser only. For production, prefer a backend proxy so API keys are never exposed in the client. Rotate keys regularly (e.g., every 90 days).
                 </p>
             </div>
         </div>
