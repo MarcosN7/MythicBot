@@ -1,0 +1,16 @@
+<svg width="1200" height="700" viewBox="0 0 1200 700" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="700" fill="#f1f5f9"/>
+  <text x="60" y="80" font-size="48" font-family="Arial" fill="#0f172a" font-weight="700">Adventure Selection</text>
+  <rect x="60" y="120" width="1080" height="520" rx="18" fill="#ffffff" stroke="#cbd5e1"/>
+  <rect x="95" y="170" width="310" height="110" rx="14" fill="#dbeafe"/>
+  <text x="125" y="230" font-size="26" font-family="Arial" fill="#1e3a8a" font-weight="700">📜 Pre-made Campaigns</text>
+  <rect x="445" y="170" width="310" height="110" rx="14" fill="#dcfce7"/>
+  <text x="475" y="230" font-size="26" font-family="Arial" fill="#166534" font-weight="700">✨ Custom Adventure</text>
+  <rect x="795" y="170" width="310" height="110" rx="14" fill="#fee2e2"/>
+  <text x="825" y="230" font-size="26" font-family="Arial" fill="#991b1b" font-weight="700">📥 Import JSON</text>
+  <rect x="95" y="320" width="1010" height="270" rx="14" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="125" y="370" font-size="28" font-family="Arial" fill="#1e293b" font-weight="700">Campaign Cards</text>
+  <text x="125" y="420" font-size="22" font-family="Arial" fill="#334155">• Difficulty badges, tags, estimated playtime</text>
+  <text x="125" y="460" font-size="22" font-family="Arial" fill="#334155">• Character + companion summary shown at top</text>
+  <text x="125" y="500" font-size="22" font-family="Arial" fill="#334155">• One-click start into game chat experience</text>
+</svg>

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import Button from '../common/Button';
 import { RollResult, RollPrompt, ClickableDice } from './AnimatedDice';
 
@@ -34,15 +34,16 @@ const getPersonalityColor = (personality) => {
 
 export default function ChatInterface({ messages, onSendMessage, isLoading, animationsEnabled = true }) {
     const [input, setInput] = useState('');
+    const [messageFilter, setMessageFilter] = useState('all');
     const messagesEndRef = useRef(null);
 
-    const scrollToBottom = () => {
+    const scrollToBottom = useCallback(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: animationsEnabled ? 'smooth' : 'auto' });
-    };
+    }, [animationsEnabled]);
 
     useEffect(() => {
         scrollToBottom();
-    }, [messages]);
+    }, [messages, scrollToBottom]);
 
     const handleSubmit = (e) => {
         e.preventDefault();
@@ -59,18 +60,49 @@ export default function ChatInterface({ messages, onSendMessage, isLoading, anim
         'Search for clues'
     ];
 
+    const filteredMessages = messages.filter((message) => {
+        if (messageFilter === 'all') return true;
+        if (messageFilter === 'rolls') return Boolean(message.roll);
+        if (messageFilter === 'companions') return message.type === 'companion' || Array.isArray(message.companionMessages);
+        return message.type === messageFilter;
+    });
+
     return (
         <div className={`flex flex-col h-full bg-white dark:bg-slate-900 ${animationsEnabled ? 'transition-colors' : ''}`}>
             {/* Messages */}
+
+            <div className="px-4 pt-3">
+                <div className="flex gap-2 overflow-x-auto pb-2" role="tablist" aria-label="Chat filters">
+                    {[
+                        { id: 'all', label: 'All' },
+                        { id: 'ai', label: 'DM' },
+                        { id: 'user', label: 'Player' },
+                        { id: 'companions', label: 'Companions' },
+                        { id: 'rolls', label: 'Rolls' }
+                    ].map((filter) => (
+                        <button
+                            key={filter.id}
+                            type="button"
+                            onClick={() => setMessageFilter(filter.id)}
+                            className={`px-3 py-1.5 text-xs rounded-full whitespace-nowrap transition-colors ${messageFilter === filter.id
+                                ? 'bg-primary-500 text-white'
+                                : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-slate-600'
+                                }`}
+                        >
+                            {filter.label}
+                        </button>
+                    ))}
+                </div>
+            </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                {messages.length === 0 && (
+                {filteredMessages.length === 0 && (
                     <div className="text-center py-12 text-gray-400 dark:text-gray-500">
                         <div className="text-5xl mb-4">📖</div>
                         <p>Your adventure begins here...</p>
                     </div>
                 )}
 
-                {messages.map((message, index) => (
+                {filteredMessages.map((message, index) => (
                     <div key={index}>
                         {/* User message */}
                         {message.type === 'user' && (

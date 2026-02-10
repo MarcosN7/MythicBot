@@ -3,12 +3,16 @@
 
 const STORAGE_KEY = 'mythicbot_gemini_api_key';
 
+const hasLocalStorage = () => typeof window !== 'undefined' && typeof localStorage !== 'undefined';
+
+
 /**
  * Get the stored API key from localStorage
  * @returns {string|null} The stored API key or null
  */
 export const getApiKey = () => {
     try {
+        if (!hasLocalStorage()) return null;
         return localStorage.getItem(STORAGE_KEY);
     } catch (error) {
         console.error('Error reading API key from localStorage:', error);
@@ -22,6 +26,7 @@ export const getApiKey = () => {
  */
 export const setApiKey = (key) => {
     try {
+        if (!hasLocalStorage()) return false;
         localStorage.setItem(STORAGE_KEY, key);
         return true;
     } catch (error) {
@@ -35,6 +40,7 @@ export const setApiKey = (key) => {
  */
 export const clearApiKey = () => {
     try {
+        if (!hasLocalStorage()) return false;
         localStorage.removeItem(STORAGE_KEY);
         return true;
     } catch (error) {

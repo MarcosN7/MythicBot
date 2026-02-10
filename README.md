@@ -57,6 +57,25 @@ MythicBot is a modern, minimalist web application that brings tabletop role-play
 
 ---
 
+
+## 🖼️ App Preview
+
+### Landing Page
+![MythicBot landing page overview](docs/images/landing-overview.svg)
+
+### Character Creation Wizard
+![Character creation flow overview](docs/images/character-creation-flow.svg)
+
+### Adventure Selection
+![Adventure selection overview](docs/images/adventure-selection-overview.svg)
+
+### In-Game Interface
+![Game interface layout overview](docs/images/game-interface-layout.svg)
+
+These visuals show the main user journey: launch the app, build a hero, pick an adventure, and play through the chat-first game interface.
+
+---
+
 ## 🚀 Quick Start
 
 ### Prerequisites

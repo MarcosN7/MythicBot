@@ -3,7 +3,9 @@
 // Follows D&D 5e rules for when to call for rolls
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { getApiKey, hasApiKey } from './apiKeyService';
+import { getApiKey, hasApiKey } from './apiKeyService.js';
+import { isFeatureEnabled } from '../config/featureFlags.js';
+import { logError, logEvent } from './telemetry.js';
 
 // === CONFIGURATION ===
 // Gemini is now initialized dynamically with user-provided API key
@@ -68,6 +70,87 @@ export const initializeGemini = (apiKey) => {
 if (hasApiKey()) {
     initializeGemini(getApiKey());
 }
+
+
+const AI_REQUEST_WINDOW_MS = 10_000;
+const AI_REQUEST_LIMIT = 6;
+const AI_REQUEST_TIMEOUT_MS = 15_000;
+const AI_RETRY_ATTEMPTS = 2;
+const aiRequestTimestamps = [];
+
+const cleanupRequestWindow = (now) => {
+    while (aiRequestTimestamps.length > 0 && now - aiRequestTimestamps[0] > AI_REQUEST_WINDOW_MS) {
+        aiRequestTimestamps.shift();
+    }
+};
+
+const consumeRateLimitToken = () => {
+    if (!isFeatureEnabled('aiRateLimiting')) return true;
+
+    const now = Date.now();
+    cleanupRequestWindow(now);
+
+    if (aiRequestTimestamps.length >= AI_REQUEST_LIMIT) {
+        return false;
+    }
+
+    aiRequestTimestamps.push(now);
+    return true;
+};
+
+const withTimeout = async (promise, timeoutMs) => {
+    let timeoutId;
+    const timeoutPromise = new Promise((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error('AI request timed out')), timeoutMs);
+    });
+
+    try {
+        return await Promise.race([promise, timeoutPromise]);
+    } finally {
+        clearTimeout(timeoutId);
+    }
+};
+
+const safeParseJson = (rawText) => {
+    if (!rawText) return null;
+    const directParse = () => {
+        try {
+            return JSON.parse(rawText);
+        } catch {
+            return null;
+        }
+    };
+
+    const fromCodeFence = rawText.match(/```json\s*([\s\S]*?)```/i);
+    if (fromCodeFence) {
+        try {
+            return JSON.parse(fromCodeFence[1]);
+        } catch {
+            return null;
+        }
+    }
+
+    return directParse();
+};
+
+const sanitizeCompanionResponses = (companions, structuredCompanions = []) => {
+    if (!Array.isArray(structuredCompanions) || structuredCompanions.length === 0) return [];
+
+    return structuredCompanions
+        .map((companionEntry) => {
+            const matchedCompanion = companions?.find((companion) => companion.name === companionEntry.name);
+            if (!matchedCompanion || !companionEntry.dialogue) return null;
+
+            return {
+                companionName: matchedCompanion.name,
+                companionRace: matchedCompanion.race,
+                companionClass: matchedCompanion.class,
+                personality: matchedCompanion.personality || 'Cheerful',
+                text: String(companionEntry.dialogue).trim()
+            };
+        })
+        .filter(Boolean);
+};
 
 // === D&D ROLL RULES ===
 const ROLL_TYPES = {
@@ -165,14 +248,58 @@ const companionDialogues = {
 const getRandomElement = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
 // Determine if an action requires a roll and what type
-const analyzeAction = (action) => {
+
+const RULE_ENGINE = {
+    combat: [
+        { patterns: ['attack', 'strike', 'slash', 'stab', 'shoot', 'cast at', 'swing at', 'punch', 'kick'], rollType: ROLL_TYPES.ATTACK_ROLL, ability: 'strength', dc: 13 }
+    ],
+    exploration: [
+        { patterns: ['search', 'investigate', 'inspect', 'track', 'discover'], rollType: ROLL_TYPES.ABILITY_CHECK, ability: 'wisdom', dc: 12 },
+        { patterns: ['sneak', 'hide', 'lockpick', 'pickpocket', 'dodge'], rollType: ROLL_TYPES.ABILITY_CHECK, ability: 'dexterity', dc: 13 },
+        { patterns: ['climb', 'jump', 'force', 'push', 'pull', 'lift'], rollType: ROLL_TYPES.ABILITY_CHECK, ability: 'strength', dc: 12 }
+    ],
+    social: [
+        { patterns: ['persuade', 'convince', 'negotiate', 'intimidate', 'deceive', 'lie'], rollType: ROLL_TYPES.ABILITY_CHECK, ability: 'charisma', dc: 12 }
+    ]
+};
+
+const analyzeActionWithRulesEngine = (action) => {
     const lowerAction = action.toLowerCase().trim();
 
     for (const trivial of TRIVIAL_ACTIONS) {
         if (lowerAction.startsWith(trivial) || lowerAction === trivial) {
-            return { requiresRoll: false, rollType: ROLL_TYPES.NO_ROLL, actionType: 'trivial' };
+            return { requiresRoll: false, rollType: ROLL_TYPES.NO_ROLL, actionType: 'trivial', dc: null };
         }
     }
+
+    for (const rule of RULE_ENGINE.combat) {
+        if (rule.patterns.some((pattern) => lowerAction.includes(pattern))) {
+            return { requiresRoll: true, rollType: rule.rollType, actionType: 'combat', ability: rule.ability, dc: rule.dc };
+        }
+    }
+
+    for (const rule of RULE_ENGINE.exploration) {
+        if (rule.patterns.some((pattern) => lowerAction.includes(pattern))) {
+            return { requiresRoll: true, rollType: rule.rollType, actionType: 'exploration', ability: rule.ability, dc: rule.dc };
+        }
+    }
+
+    for (const rule of RULE_ENGINE.social) {
+        if (rule.patterns.some((pattern) => lowerAction.includes(pattern))) {
+            return { requiresRoll: true, rollType: rule.rollType, actionType: 'interaction', ability: rule.ability, dc: rule.dc };
+        }
+    }
+
+    return null;
+};
+
+const analyzeAction = (action) => {
+    const deterministicAnalysis = analyzeActionWithRulesEngine(action);
+    if (deterministicAnalysis) {
+        return deterministicAnalysis;
+    }
+
+    const lowerAction = action.toLowerCase().trim();
 
     for (const keyword of ATTACK_KEYWORDS) {
         if (lowerAction.includes(keyword)) {
@@ -181,7 +308,7 @@ const analyzeAction = (action) => {
                 rollType: ROLL_TYPES.ATTACK_ROLL,
                 actionType: 'combat',
                 ability: 'strength',
-                dc: 12 + Math.floor(Math.random() * 6)
+                dc: 14
             };
         }
     }
@@ -193,28 +320,20 @@ const analyzeAction = (action) => {
                     requiresRoll: true,
                     rollType: ROLL_TYPES.ABILITY_CHECK,
                     actionType: lowerAction.includes('sneak') || lowerAction.includes('hide') ? 'exploration' : 'interaction',
-                    ability: ability,
-                    dc: 10 + Math.floor(Math.random() * 8)
+                    ability,
+                    dc: 12
                 };
             }
         }
     }
 
-    if (lowerAction.includes('ask') || lowerAction.includes('talk') || lowerAction.includes('speak')) {
-        if (lowerAction.includes('convince') || lowerAction.includes('persuade') || lowerAction.includes('lie')) {
-            return { requiresRoll: true, rollType: ROLL_TYPES.ABILITY_CHECK, actionType: 'interaction', ability: 'charisma', dc: 12 + Math.floor(Math.random() * 6) };
-        }
-        return { requiresRoll: false, rollType: ROLL_TYPES.NO_ROLL, actionType: 'interaction' };
-    }
-
-    if (lowerAction.includes('search') || lowerAction.includes('find') || lowerAction.includes('discover')) {
-        return { requiresRoll: true, rollType: ROLL_TYPES.ABILITY_CHECK, actionType: 'exploration', ability: 'wisdom', dc: 10 + Math.floor(Math.random() * 6) };
-    }
-
-    return { requiresRoll: false, rollType: ROLL_TYPES.NO_ROLL, actionType: 'exploration' };
+    return { requiresRoll: false, rollType: ROLL_TYPES.NO_ROLL, actionType: 'exploration', dc: null };
 };
 
-const getAbilityModifier = (score) => Math.floor((score - 10) / 2);
+export const getAbilityModifier = (score) => Math.floor((score - 10) / 2);
+
+export { analyzeAction, ROLL_TYPES };
+
 
 // Generate companion responses (for fallback)
 const generateCompanionResponses = (companions, actionType, isSuccess) => {
@@ -341,39 +460,46 @@ IMPORTANT RULES:
 - Do NOT break character or reference game mechanics directly
 - Do NOT railroad - present options, not destinations
 - BE CREATIVE - surprise the player with unexpected but logical developments
-- STAY CONCISE - quality over quantity, 2-4 punchy paragraphs max`;
+- STAY CONCISE - quality over quantity, 2-4 punchy paragraphs max
+
+OUTPUT CONTRACT:
+Return ONLY JSON in this exact shape:
+{
+  "narration": "string",
+  "requiresRoll": boolean,
+  "rollType": "ability_check|attack_roll|saving_throw|damage_roll|no_roll",
+  "ability": "strength|dexterity|constitution|intelligence|wisdom|charisma|null",
+  "dc": number|null,
+  "companions": [{ "name": "string", "dialogue": "string" }]
+}`;
 
     try {
-        const result = await geminiModel.generateContent(prompt);
-        const response = await result.response;
-        const text = response.text();
-
-        // Extract companion responses from the text (simple pattern matching)
-        const companionResponses = [];
-        if (companions && companions.length > 0) {
-            companions.forEach(companion => {
-                const pattern = new RegExp(`\\*\\*${companion.name}\\*\\*:\\s*"([^"]+)"`, 'gi');
-                const match = pattern.exec(text);
-                if (match) {
-                    companionResponses.push({
-                        companionName: companion.name,
-                        companionRace: companion.race,
-                        companionClass: companion.class,
-                        personality: companion.personality || 'Cheerful',
-                        text: match[1]
-                    });
-                }
-            });
+        if (!consumeRateLimitToken()) {
+            throw new Error('Too many AI requests in a short period. Please wait a moment and try again.');
         }
 
-        // Clean the text by removing companion dialogue markers for main message
-        let cleanedText = text;
-        companions?.forEach(companion => {
-            cleanedText = cleanedText.replace(new RegExp(`\\*\\*${companion.name}\\*\\*:\\s*"[^"]+"\\s*`, 'gi'), '');
-        });
+        let text = '';
+        for (let attempt = 0; attempt < AI_RETRY_ATTEMPTS; attempt += 1) {
+            try {
+                const result = await withTimeout(geminiModel.generateContent(prompt), AI_REQUEST_TIMEOUT_MS);
+                const response = await result.response;
+                text = response.text();
+                break;
+            } catch (error) {
+                if (attempt === AI_RETRY_ATTEMPTS - 1) {
+                    throw error;
+                }
+                await delay(300 * (attempt + 1));
+            }
+        }
+
+        const structured = isFeatureEnabled('structuredAiOutput') ? safeParseJson(text) : null;
+        const companionResponses = sanitizeCompanionResponses(companions, structured?.companions);
+
+        const cleanedText = structured?.narration?.trim() || text.trim();
 
         return {
-            text: cleanedText.trim(),
+            text: cleanedText,
             roll: roll,
             rollType: analysis.rollType,
             actionType: analysis.actionType,
@@ -382,6 +508,7 @@ IMPORTANT RULES:
             companionResponses: companionResponses.length > 0 ? companionResponses : generateCompanionResponses(companions, analysis.actionType, isSuccess)
         };
     } catch (error) {
+        logError('gemini_response_failed', error, { selectedModel: 'gemini' });
         console.error('Gemini API error:', error);
         // Fall back to mock response
         return generateMockResponse(context);
@@ -465,11 +592,13 @@ export const generateDMResponse = async (context, selectedModel = 'auto') => {
         console.log('🤖 Using Gemini AI...');
         response = await generateGeminiResponse(context);
         modelUsed = 'gemini';
+        logEvent('dm_response_generated', { model: modelUsed, requiresRoll: response.requiresRoll });
     } else {
         console.log('📦 Using Mock AI (offline mode)...');
         await delay(500 + Math.random() * 1000);
         response = generateMockResponse(context);
         modelUsed = 'mock';
+        logEvent('dm_response_generated', { model: modelUsed, requiresRoll: response.requiresRoll });
     }
 
     return {
