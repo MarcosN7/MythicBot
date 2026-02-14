@@ -1,3 +1,4 @@
+/* global global */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { gameReducer, initialState, ActionTypes } from '../src/context/gameState.js';
@@ -5,6 +6,10 @@ import { gameReducer, initialState, ActionTypes } from '../src/context/gameState
 test('START_GAME sets gameStarted true', () => {
     const next = gameReducer(initialState, { type: ActionTypes.START_GAME });
     assert.equal(next.gameStarted, true);
+});
+
+test('initialState has Dark Mode enabled by default', () => {
+    assert.equal(initialState.settings.darkMode, true);
 });
 
 test('UPDATE_HP respects floor and ceiling', () => {

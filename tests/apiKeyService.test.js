@@ -1,3 +1,4 @@
+/* global global */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { getApiKey, setApiKey, clearApiKey, hasApiKey } from '../src/services/apiKeyService.js';

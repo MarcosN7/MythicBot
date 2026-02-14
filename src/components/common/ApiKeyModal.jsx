@@ -78,22 +78,42 @@ export default function ApiKeyModal({ isOpen, onClose, onKeySet }) {
 
                 {/* Instructions */}
                 <div className="mb-6 p-4 rounded-xl bg-primary-50 dark:bg-primary-900/20 border border-primary-100 dark:border-primary-800">
-                    <p className="text-sm text-gray-700 dark:text-gray-300 mb-3">
-                        To use Gemini AI for immersive storytelling, you need your own free API key:
+                    <h5 className="font-semibold text-sm text-gray-900 dark:text-gray-200 mb-2">How to get an API Key</h5>
+                    <ul className="space-y-2 text-xs text-gray-600 dark:text-gray-400">
+                        <li className="flex items-start gap-2">
+                            <span className="mt-0.5">🔹</span>
+                            <div>
+                                <span className="font-medium text-gray-900 dark:text-gray-300">Google Gemini (Recommended):</span>
+                                <br />
+                                Get a free key at <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-primary-600 dark:text-primary-400 hover:underline">Google AI Studio</a>.
+                                <br />
+                                <em>(Requires a Google account)</em>
+                            </div>
+                        </li>
+                        <li className="flex items-start gap-2 opacity-75">
+                            <span className="mt-0.5">🔸</span>
+                            <div>
+                                <span className="font-medium text-gray-900 dark:text-gray-300">OpenAI (Coming Soon):</span>
+                                <br />
+                                Keys available at <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-primary-600 dark:text-primary-400 hover:underline">OpenAI Platform</a>.
+                                <br />
+                                <em>(Requires paid credits)</em>
+                            </div>
+                        </li>
+                        <li className="flex items-start gap-2 opacity-75">
+                            <span className="mt-0.5">🔸</span>
+                            <div>
+                                <span className="font-medium text-gray-900 dark:text-gray-300">Anthropic Claude (Coming Soon):</span>
+                                <br />
+                                Keys available at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer" className="text-primary-600 dark:text-primary-400 hover:underline">Anthropic Console</a>.
+                                <br />
+                                <em>(Requires paid account)</em>
+                            </div>
+                        </li>
+                    </ul>
+                    <p className="mt-3 text-xs text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-slate-700 pt-2">
+                        Currently, <strong>Gemini</strong> is the only fully supported provider.
                     </p>
-                    <ol className="text-sm text-gray-600 dark:text-gray-400 space-y-2 list-decimal list-inside">
-                        <li>Visit <a
-                            href="https://aistudio.google.com/app/apikey"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-primary-600 dark:text-primary-400 hover:underline font-medium"
-                        >
-                            Google AI Studio
-                        </a></li>
-                        <li>Sign in with your Google account</li>
-                        <li>Click "Create API key"</li>
-                        <li>Copy and paste the key below</li>
-                    </ol>
                 </div>
 
                 {/* Existing Key Status */}

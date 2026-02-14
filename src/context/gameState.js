@@ -33,7 +33,7 @@ export const initialState = {
     currentStep: 0,
     settings: {
         aiModel: 'mock',
-        darkMode: false,
+        darkMode: true,
         soundEnabled: true,
         animationsEnabled: true
     },
@@ -55,7 +55,6 @@ export const ActionTypes = {
     SET_CURRENT_STEP: 'SET_CURRENT_STEP',
     START_GAME: 'START_GAME',
     UPDATE_SETTINGS: 'UPDATE_SETTINGS',
-    LOAD_STATE: 'LOAD_STATE',
     LOAD_STATE: 'LOAD_STATE',
     RESET_STATE: 'RESET_STATE',
     SET_PENDING_ROLL: 'SET_PENDING_ROLL',
@@ -129,7 +128,6 @@ export function gameReducer(state, action) {
             return { ...state, settings: { ...state.settings, ...action.settings } };
         case ActionTypes.LOAD_STATE:
             return { ...initialState, ...action.state };
-        case ActionTypes.RESET_STATE:
         case ActionTypes.RESET_STATE:
             return initialState;
         case ActionTypes.SET_PENDING_ROLL:

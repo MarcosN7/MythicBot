@@ -42,7 +42,7 @@ const migrateState = (payload) => {
                 ...state,
                 settings: {
                     aiModel: 'mock',
-                    darkMode: false,
+                    darkMode: true,
                     soundEnabled: true,
                     animationsEnabled: true,
                     ...(isObject(state.settings) ? state.settings : {})
