@@ -1,4 +1,4 @@
-import { createContext, useContext, useReducer, useEffect } from 'react';
+import { createContext, useContext, useReducer, useEffect, useMemo } from 'react';
 import { saveGameState, loadGameState, clearGameState } from '../services/storage';
 import { ActionTypes, gameReducer, initialState } from './gameState';
 
@@ -24,8 +24,8 @@ export function GameProvider({ children }) {
         }
     }, [state]);
 
-    // Action creators
-    const actions = {
+    // Action creators - Memoized to prevent unnecessary re-renders
+    const actions = useMemo(() => ({
         setCharacterField: (field, value) =>
             dispatch({ type: ActionTypes.SET_CHARACTER_FIELD, field, value }),
 
@@ -71,11 +71,19 @@ export function GameProvider({ children }) {
         resetGame: () => {
             dispatch({ type: ActionTypes.RESET_STATE });
             clearGameState();
-        }
-    };
+        },
+
+        setPendingRoll: (rollData) =>
+            dispatch({ type: ActionTypes.SET_PENDING_ROLL, rollData }),
+
+        clearPendingRoll: () =>
+            dispatch({ type: ActionTypes.CLEAR_PENDING_ROLL })
+    }), []);
+
+    const contextValue = useMemo(() => ({ state, ...actions }), [state, actions]);
 
     return (
-        <GameContext.Provider value={{ state, ...actions }}>
+        <GameContext.Provider value={contextValue}>
             {children}
         </GameContext.Provider>
     );

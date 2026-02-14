@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { useDice } from '../../hooks/useDice';
 import Button from '../common/Button';
 import { RollResult, RollPrompt, ClickableDice } from './AnimatedDice';
 
@@ -32,10 +33,24 @@ const getPersonalityColor = (personality) => {
     return colors[personality] || 'from-gray-50 to-gray-100 border-gray-200 dark:from-gray-800 dark:to-gray-700 dark:border-gray-600';
 };
 
-export default function ChatInterface({ messages, onSendMessage, isLoading, animationsEnabled = true }) {
+export default function ChatInterface({ messages, onSendMessage, isLoading, animationsEnabled = true, pendingRoll, onManualRoll }) {
     const [input, setInput] = useState('');
     const [messageFilter, setMessageFilter] = useState('all');
     const messagesEndRef = useRef(null);
+    const { rollDie, formatRollMessage } = useDice();
+
+    const handleQuickRoll = () => {
+        const result = rollDie(20);
+
+        if (pendingRoll && onManualRoll) {
+            // If we are waiting for a specific roll, use the manual roll handler
+            onManualRoll(result);
+        } else {
+            // Otherwise, just send a generic roll message
+            const rollText = formatRollMessage(result);
+            onSendMessage(rollText);
+        }
+    };
 
     const scrollToBottom = useCallback(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: animationsEnabled ? 'smooth' : 'auto' });
@@ -226,14 +241,21 @@ export default function ChatInterface({ messages, onSendMessage, isLoading, anim
                     {/* Quick Dice Roll Button */}
                     <button
                         type="button"
-                        onClick={() => {
-                            const roll = Math.floor(Math.random() * 20) + 1;
-                            const rollText = `🎲 I roll a d20... [${roll}]${roll === 20 ? ' Critical!' : roll === 1 ? ' Fumble!' : ''}`;
-                            onSendMessage(rollText);
-                        }}
+                        onClick={handleQuickRoll}
                         disabled={isLoading}
-                        className="p-3 bg-gradient-to-br from-primary-100 to-accent-100 dark:from-primary-900/50 dark:to-accent-900/50 hover:from-primary-200 hover:to-accent-200 dark:hover:from-primary-800/50 dark:hover:to-accent-800/50 rounded-xl text-xl transition-all active:scale-95 disabled:opacity-50 flex-shrink-0"
-                        title="Roll d20"
+                        className={`p-3 rounded-xl text-xl transition-all active:scale-95 disabled:opacity-50 flex-shrink-0 ${pendingRoll
+                                ? pendingRoll.characterName && pendingRoll.characterName !== 'player'
+                                    ? 'bg-purple-500 hover:bg-purple-600 text-white animate-bounce shadow-lg ring-2 ring-purple-300 ring-offset-2'
+                                    : 'bg-amber-500 hover:bg-amber-600 text-white animate-bounce shadow-lg ring-2 ring-amber-300 ring-offset-2'
+                                : 'bg-gradient-to-br from-primary-100 to-accent-100 dark:from-primary-900/50 dark:to-accent-900/50 hover:from-primary-200 hover:to-accent-200 dark:hover:from-primary-800/50 dark:hover:to-accent-800/50'
+                            }`}
+                        title={
+                            pendingRoll
+                                ? pendingRoll.characterName && pendingRoll.characterName !== 'player'
+                                    ? `Roll for ${pendingRoll.characterName}'s ${pendingRoll.ability} check!`
+                                    : `Roll for your ${pendingRoll.ability} check!`
+                                : "Roll d20"
+                        }
                     >
                         🎲
                     </button>

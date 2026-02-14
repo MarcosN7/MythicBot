@@ -23,6 +23,7 @@ MythicBot is a modern, minimalist web application that brings tabletop role-play
 
 ### 🎲 Authentic D&D Experience
 - **Proper Roll Mechanics** - Follows D&D 5e rules for when rolls are required
+- **Manual Dice Interaction** - The DM asks *you* to roll when the stakes are high
 - **Ability Checks** - Strength, Dexterity, Constitution, Intelligence, Wisdom, Charisma
 - **Attack Rolls** - Combat with AC and hit determination
 - **Critical Success/Failure** - Natural 20s and 1s with special effects
@@ -32,6 +33,7 @@ MythicBot is a modern, minimalist web application that brings tabletop role-play
 ### 💬 Immersive Chat Interface
 - **AI Dungeon Master** - Contextual narration and story progression
 - **Companion Chat Bubbles** - Each companion speaks with their own personality
+- **Companion Agency** - Companions can take risks and roll for their own actions!
 - **8 Personality Types** - Cheerful, Stoic, Sarcastic, Wise, Impulsive, Cautious, Grumpy, Mischievous
 - **Quick Actions** - Common actions at your fingertips
 - **Interactive Dice** - Click to roll d20 directly in chat
@@ -106,6 +108,26 @@ Open your browser to `http://localhost:5173` and begin your adventure!
 npm run build
 npm run preview
 ```
+
+---
+
+## 🧪 Testing
+
+MythicBot includes both unit and component tests to ensure stability.
+
+### Running Tests
+
+**Unit Tests** (Node.js native runner):
+```bash
+npm test
+```
+Runs logic tests for game rules, storage, and API services.
+
+**Component Tests** (Vitest + React Testing Library):
+```bash
+npx vitest run
+```
+Runs UI tests for components like `ChatInterface` and `GameInterface`.
 
 ---
 

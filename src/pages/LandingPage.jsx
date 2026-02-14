@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Button from '../components/common/Button';
 import Card from '../components/common/Card';
@@ -20,6 +20,13 @@ export default function LandingPage() {
         }
         setGeminiAvailable(isGeminiAvailable());
     }, []);
+
+    // Auto-select Gemini if key is available but model is set to mock
+    useEffect(() => {
+        if (hasApiKey() && state.settings.aiModel === 'mock') {
+            updateSettings({ aiModel: 'gemini' });
+        }
+    }, [refreshGeminiStatus, state.settings.aiModel, updateSettings]);
 
     const handleStartAdventure = () => {
         if (state.gameStarted) {

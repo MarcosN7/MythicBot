@@ -47,12 +47,12 @@ export const initializeGemini = (apiKey) => {
     try {
         genAI = new GoogleGenerativeAI(apiKey);
         geminiModel = genAI.getGenerativeModel({
-            model: "gemini-2.0-flash",
+            model: "gemini-2.5-flash",
             generationConfig: {
                 temperature: 0.9,
                 topP: 0.95,
                 topK: 40,
-                maxOutputTokens: 1024,
+                maxOutputTokens: 4096,
             }
         });
         currentApiKey = apiKey;
@@ -113,24 +113,50 @@ const withTimeout = async (promise, timeoutMs) => {
 
 const safeParseJson = (rawText) => {
     if (!rawText) return null;
-    const directParse = () => {
+
+    // Helper to attempt parsing
+    const tryParse = (str) => {
         try {
-            return JSON.parse(rawText);
+            return JSON.parse(str);
         } catch {
             return null;
         }
     };
 
-    const fromCodeFence = rawText.match(/```json\s*([\s\S]*?)```/i);
+    // 1. Try extracting from code block
+    const fromCodeFence = rawText.match(/```(?:json)?\s*([\s\S]*?)```/i);
     if (fromCodeFence) {
-        try {
-            return JSON.parse(fromCodeFence[1]);
-        } catch {
-            return null;
-        }
+        const parsed = tryParse(fromCodeFence[1]);
+        if (parsed) return parsed;
     }
 
-    return directParse();
+    // 2. Try direct parse (in case it's pure JSON)
+    const direct = tryParse(rawText);
+    if (direct) return direct;
+
+    // 3. Try extracting the first valid JSON object structure
+    // Find the first '{' and the last '}'
+    const firstBrace = rawText.indexOf('{');
+    const lastBrace = rawText.lastIndexOf('}');
+
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+        const potentialJson = rawText.substring(firstBrace, lastBrace + 1);
+        const extracted = tryParse(potentialJson);
+        if (extracted) return extracted;
+    }
+
+    // 4. Fallback: If JSON is truncated, try to regex extract "narration" directly
+    // This is a last resort to save the user from seeing raw code if possible
+    const narrationMatch = rawText.match(/"narration"\s*:\s*"((?:[^"\\]|\\.)*)/);
+    if (narrationMatch) {
+        // If we match the start of narration but no end quote, likely truncated
+        // If we have a match, we construct a partial object
+        return {
+            narration: narrationMatch[1] // This might be the full string or cut off, but better than null
+        };
+    }
+
+    return null;
 };
 
 const sanitizeCompanionResponses = (companions, structuredCompanions = []) => {
@@ -170,7 +196,7 @@ const TRIVIAL_ACTIONS = [
 
 // Actions that require ABILITY CHECKS
 const ABILITY_CHECK_ACTIONS = {
-    strength: ['force', 'break', 'push', 'pull', 'lift', 'climb', 'jump', 'swim against'],
+    strength: ['force', 'break', 'smash', 'destroy', 'push', 'pull', 'lift', 'climb', 'jump', 'swim against'],
     dexterity: ['sneak', 'hide', 'pickpocket', 'lockpick', 'acrobatics', 'dodge', 'tumble'],
     constitution: ['endure', 'resist poison', 'hold breath', 'march', 'survive'],
     intelligence: ['investigate', 'recall', 'decipher', 'identify', 'arcana'],
@@ -179,7 +205,7 @@ const ABILITY_CHECK_ACTIONS = {
 };
 
 // Actions that require ATTACK ROLLS
-const ATTACK_KEYWORDS = ['attack', 'strike', 'hit', 'slash', 'stab', 'shoot', 'cast at', 'swing at', 'punch', 'kick'];
+const ATTACK_KEYWORDS = ['attack', 'strike', 'hit', 'slash', 'stab', 'shoot', 'cast at', 'swing at', 'punch', 'kick', 'smash'];
 
 // Companion dialogue templates for fallback/offline mode
 const companionDialogues = {
@@ -251,12 +277,12 @@ const getRandomElement = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
 const RULE_ENGINE = {
     combat: [
-        { patterns: ['attack', 'strike', 'slash', 'stab', 'shoot', 'cast at', 'swing at', 'punch', 'kick'], rollType: ROLL_TYPES.ATTACK_ROLL, ability: 'strength', dc: 13 }
+        { patterns: ['attack', 'strike', 'slash', 'stab', 'shoot', 'cast at', 'swing at', 'punch', 'kick', 'smash'], rollType: ROLL_TYPES.ATTACK_ROLL, ability: 'strength', dc: 13 }
     ],
     exploration: [
-        { patterns: ['search', 'investigate', 'inspect', 'track', 'discover'], rollType: ROLL_TYPES.ABILITY_CHECK, ability: 'wisdom', dc: 12 },
+        { patterns: ['search', 'investigate', 'inspect', 'track', 'discover', 'check'], rollType: ROLL_TYPES.ABILITY_CHECK, ability: 'wisdom', dc: 12 },
         { patterns: ['sneak', 'hide', 'lockpick', 'pickpocket', 'dodge'], rollType: ROLL_TYPES.ABILITY_CHECK, ability: 'dexterity', dc: 13 },
-        { patterns: ['climb', 'jump', 'force', 'push', 'pull', 'lift'], rollType: ROLL_TYPES.ABILITY_CHECK, ability: 'strength', dc: 12 }
+        { patterns: ['climb', 'jump', 'force', 'push', 'pull', 'lift', 'break', 'destroy'], rollType: ROLL_TYPES.ABILITY_CHECK, ability: 'strength', dc: 12 }
     ],
     social: [
         { patterns: ['persuade', 'convince', 'negotiate', 'intimidate', 'deceive', 'lie'], rollType: ROLL_TYPES.ABILITY_CHECK, ability: 'charisma', dc: 12 }
@@ -293,13 +319,31 @@ const analyzeActionWithRulesEngine = (action) => {
     return null;
 };
 
-const analyzeAction = (action) => {
-    const deterministicAnalysis = analyzeActionWithRulesEngine(action);
-    if (deterministicAnalysis) {
-        return deterministicAnalysis;
+const analyzeAction = (action, companions = []) => {
+    let targetCharacter = 'player';
+    let actionToAnalyze = action;
+
+    // Check if action is directed at a companion
+    if (companions && companions.length > 0) {
+        for (const companion of companions) {
+            const namePattern = new RegExp(`^${companion.name}\\b`, 'i');
+            if (namePattern.test(action)) {
+                targetCharacter = companion.name;
+                // Remove name from action for analysis (e.g., "Lyra attack" -> "attack")
+                actionToAnalyze = action.replace(namePattern, '').trim();
+                // Remove leading punctuation like comma or colon
+                actionToAnalyze = actionToAnalyze.replace(/^[,:]\s*/, '');
+                break;
+            }
+        }
     }
 
-    const lowerAction = action.toLowerCase().trim();
+    const deterministicAnalysis = analyzeActionWithRulesEngine(actionToAnalyze);
+    if (deterministicAnalysis) {
+        return { ...deterministicAnalysis, characterName: targetCharacter };
+    }
+
+    const lowerAction = actionToAnalyze.toLowerCase().trim();
 
     for (const keyword of ATTACK_KEYWORDS) {
         if (lowerAction.includes(keyword)) {
@@ -308,7 +352,8 @@ const analyzeAction = (action) => {
                 rollType: ROLL_TYPES.ATTACK_ROLL,
                 actionType: 'combat',
                 ability: 'strength',
-                dc: 14
+                dc: 14,
+                characterName: targetCharacter
             };
         }
     }
@@ -321,13 +366,14 @@ const analyzeAction = (action) => {
                     rollType: ROLL_TYPES.ABILITY_CHECK,
                     actionType: lowerAction.includes('sneak') || lowerAction.includes('hide') ? 'exploration' : 'interaction',
                     ability,
-                    dc: 12
+                    dc: 12,
+                    characterName: targetCharacter
                 };
             }
         }
     }
 
-    return { requiresRoll: false, rollType: ROLL_TYPES.NO_ROLL, actionType: 'exploration', dc: null };
+    return { requiresRoll: false, rollType: ROLL_TYPES.NO_ROLL, actionType: 'exploration', dc: null, characterName: targetCharacter };
 };
 
 export const getAbilityModifier = (score) => Math.floor((score - 10) / 2);
@@ -360,25 +406,96 @@ const generateCompanionResponses = (companions, actionType, isSuccess) => {
 
 // === GEMINI AI RESPONSE ===
 const generateGeminiResponse = async (context) => {
-    const { character, companions, previousTurns, action } = context;
+    const { character, companions, previousTurns, action, rollResult } = context;
 
     // Analyze action for roll requirements
-    const analysis = analyzeAction(action);
-    let roll = null;
-    let modifier = 0;
-    let total = 0;
-    let isSuccess = null;
+    const analysis = analyzeAction(action, companions);
 
-    if (analysis.requiresRoll) {
-        roll = Math.floor(Math.random() * 20) + 1;
-        if (character?.stats && analysis.ability) {
-            modifier = getAbilityModifier(character.stats[analysis.ability] || 10);
-        }
-        total = roll + modifier;
-        isSuccess = roll === 20 ? true : roll === 1 ? false : total >= analysis.dc;
+    // If we have a roll result, we are RESOLVING a pending action
+    if (rollResult) {
+        return generateRollResolution(context, analysis, rollResult);
     }
 
-    // Build context for Gemini
+    // If action requires a roll but we don't have one yet, we need to ASK for it
+    if (analysis.requiresRoll) {
+        // Build context for Gemini (Request Phase)
+        const companionList = companions && companions.length > 0
+            ? companions.map(c => `${c.name} (${c.race} ${c.class}, ${c.personality} personality)`).join(', ')
+            : 'None';
+
+        const recentHistory = previousTurns.slice(-6).map(turn =>
+            `${turn.type === 'user' ? 'PLAYER' : 'DM'}: ${turn.text}`
+        ).join('\n');
+
+        const actorName = analysis.characterName === 'player' ? character?.name : analysis.characterName;
+        const actorType = analysis.characterName === 'player' ? 'Player' : 'Companion';
+
+        const prompt = `You are an expert Dungeon Master for a D&D 5e solo campaign.
+Your goal is to *gamify* the experience.
+The ${actorType} (${actorName}) has attempted an action that requires a dice roll.
+
+Valid Check Type: ${analysis.rollType === 'attack_roll' ? 'Attack Roll' : `${analysis.ability} Check`} (DC ${analysis.dc})
+
+## CORE INSTRUCTIONS
+1. **DESCRIBE THE SETUP**: Describe the immediate situation and the challenge facing ${actorName}.
+2. **ASK FOR THE ROLL**: Explicitly tell the player to roll for ${actorName}.
+3. **STOP**: Do NOT describe the outcome yet. Wait for the roll.
+
+## CURRENT CONTEXT
+- **Player**: ${character?.name} (${character?.race} ${character?.class})
+- **Party**: ${companionList}
+- **Situation**: ${recentHistory}
+
+## ACTION
+"${action}"
+
+## OUTPUT FORMAT (Strict JSON)
+{
+  "narration": "The setup text (1-2 paragraphs). End by asking for the specific roll for ${actorName}.",
+  "companions": []
+}`;
+
+        // Execute request to Gemini
+        try {
+            if (!consumeRateLimitToken()) throw new Error('Rate limit exceeded');
+            const result = await withTimeout(geminiModel.generateContent(prompt), AI_REQUEST_TIMEOUT_MS);
+            const response = await result.response;
+            const text = response.text();
+            const structured = safeParseJson(text);
+            const cleanedText = structured?.narration?.trim() || text.replace(/```json/g, '').replace(/```/g, '').trim();
+
+            return {
+                text: cleanedText,
+                requiresRoll: true,
+                waitingForRoll: true, // Signal to UI to wait for user input
+                rollParams: {
+                    type: analysis.rollType,
+                    ability: analysis.ability,
+                    dc: analysis.dc,
+                    action: action, // Store original action to resolve later
+                    characterName: analysis.characterName // Pass who is rolling
+                },
+                companionResponses: []
+            };
+
+        } catch (error) {
+            console.error('Gemini Request Error:', error);
+            // Fallback to mock if API fails
+            return generateMockResponse(context);
+        }
+    }
+
+    // Normal narrative flow (No roll needed)
+    return generateNormalNarrative(context);
+};
+
+// Helper for normal narrative (no roll)
+const generateNormalNarrative = async (context) => {
+    const { character, companions, previousTurns, action } = context;
+
+    // ... (Existing logic for normal response construction) ...
+    // Reuse the existing prompt logic but strictly for non-roll actions
+
     const companionList = companions && companions.length > 0
         ? companions.map(c => `${c.name} (${c.race} ${c.class}, ${c.personality} personality)`).join(', ')
         : 'None';
@@ -387,130 +504,108 @@ const generateGeminiResponse = async (context) => {
         `${turn.type === 'user' ? 'PLAYER' : 'DM'}: ${turn.text}`
     ).join('\n');
 
-    const rollInfo = analysis.requiresRoll
-        ? `\n\n**DICE ROLL RESULT**: The player rolled a d20 and got ${roll}${modifier >= 0 ? '+' : ''}${modifier} = ${total} against DC ${analysis.dc}. Result: ${isSuccess ? 'SUCCESS' : 'FAILURE'}${roll === 20 ? ' (CRITICAL SUCCESS!)' : roll === 1 ? ' (CRITICAL FAILURE!)' : ''}`
-        : '\n\n**NO ROLL NEEDED**: This is a trivial action that succeeds automatically.';
+    const prompt = `You are an expert Dungeon Master for a D&D 5e solo campaign.
+Your goal is to *gamify* the experience. The player action does NOT require a roll (it is trivial or social).
 
-    const prompt = `You are an exceptional Dungeon Master running a D&D 5th Edition campaign. You are a master storyteller who brings worlds to life with vivid prose, dramatic tension, and unforgettable moments.
+## CORE INSTRUCTIONS
+1. **NARRATE**: Describe the outcome vividly.
+2. **COMPANIONS**: Include companion reactions if relevant.
+3. **HOOK**: End with a prompt for what to do next.
 
-## YOUR DUNGEON MASTER PHILOSOPHY
-- **Immersion First**: Make the player FEEL like they are in the world. Engage all five senses.
-- **Dramatic Storytelling**: Build tension, use pacing, create memorable moments and callbacks to previous events.
-- **Player Agency**: Honor player choices. Their actions matter and have consequences.
-- **D&D 5e Authenticity**: Follow the rules, but remember: narrative trumps mechanics. Rule of Cool applies.
-- **Living World**: NPCs have goals, fears, and motivations. The world moves even when the player doesn't.
+## CURRENT CONTEXT
+- **Player**: ${character?.name} (${character?.race} ${character?.class})
+- **Party**: ${companionList}
+- **Situation**: ${recentHistory}
 
-## D&D 5E RULES TO FOLLOW
-- Natural 20 = Critical Success (describe something EPIC happening)
-- Natural 1 = Critical Failure (describe a dramatic mishap, but keep it fun, not punishing)
-- Skills matter: Proficiency makes characters shine in their expertise
-- Class features matter: Reference class abilities when relevant (a Rogue's cunning, a Paladin's conviction)
-- Race traits matter: Include racial characteristics in your descriptions
-- Spells have verbal, somatic, or material components - describe the casting!
-- Combat is tactical: describe positioning, cover, terrain advantages
+## PLAYER ACTION
+"${action}"
 
-## STORYTELLING TECHNIQUES
-- **Start in action**: Hook immediately with sensory details
-- **Show, don't tell**: "Sweat beads on his brow as he grips his sword tighter" not "He looks nervous"
-- **The Rule of Three**: Use three sensory details per scene (sight, sound, smell/touch/taste)
-- **Callbacks**: Reference earlier events, choices, and character details
-- **Foreshadowing**: Plant seeds for future events when appropriate
-- **Cliffhangers**: End sequences with tension or intrigue
-
-## ENVIRONMENTAL STORYTELLING
-Always include atmospheric details:
-- **Weather**: Rain pattering on stone, oppressive heat, biting cold, mist curling
-- **Sounds**: Distant thunder, creaking floorboards, whispered voices, clashing steel
-- **Smells**: Torch smoke, damp earth, exotic spices, the copper tang of blood
-- **Textures**: Rough-hewn stone, silk tapestries, gnarled roots, cold iron
-- **Light**: Flickering candlelight, moonbeams through clouds, phosphorescent fungi, utter darkness
-
-## CURRENT PARTY
-**Player Character**: ${character?.name || 'Adventurer'}, a ${character?.race || 'human'} ${character?.class || 'fighter'}
-- Stats: STR ${character?.stats?.strength || 10}, DEX ${character?.stats?.dexterity || 10}, CON ${character?.stats?.constitution || 10}, INT ${character?.stats?.intelligence || 10}, WIS ${character?.stats?.wisdom || 10}, CHA ${character?.stats?.charisma || 10}
-- Personality: ${character?.personality || 'Brave adventurer'}
-- Background: ${character?.background || 'Unknown origins'}
-
-**Companions**: ${companionList}
-When companions speak, their dialogue should:
-- Reflect their personality trait (a Sarcastic character snipes, a Cheerful one encourages)
-- Show their class background (a Wizard references arcana, a Fighter discusses tactics)
-- React authentically to success/failure (celebrate victories, console after setbacks)
-- Have their own opinions that sometimes differ from the player's choices
-
-## RECENT EVENTS
-${recentHistory || 'The adventure has just begun.'}
-
-## CURRENT ACTION
-The player says: "${action}"
-${rollInfo}
-
-## YOUR RESPONSE GUIDELINES
-Write a cinematic response as the Dungeon Master (2-4 paragraphs). Structure your response:
-
-1. **IMMEDIATE REACTION**: What happens in the moment? Describe the action with sensory detail.
-2. **CONSEQUENCES**: How does the world respond? NPCs react, environment changes.
-3. **COMPANION MOMENTS**: If companions are present, have 1-2 react with personality-fitting dialogue.
-4. **FORWARD MOMENTUM**: End with a hook - a new discovery, approaching danger, or a choice to make.
-
-Format companion dialogue: **CompanionName**: "Their dialogue here"
-
-IMPORTANT RULES:
-- Do NOT include dice roll numbers - the UI displays those separately
-- Do NOT break character or reference game mechanics directly
-- Do NOT railroad - present options, not destinations
-- BE CREATIVE - surprise the player with unexpected but logical developments
-- STAY CONCISE - quality over quantity, 2-4 punchy paragraphs max
-
-OUTPUT CONTRACT:
-Return ONLY JSON in this exact shape:
+## OUTPUT FORMAT (Strict JSON)
 {
-  "narration": "string",
-  "requiresRoll": boolean,
-  "rollType": "ability_check|attack_roll|saving_throw|damage_roll|no_roll",
-  "ability": "strength|dexterity|constitution|intelligence|wisdom|charisma|null",
-  "dc": number|null,
-  "companions": [{ "name": "string", "dialogue": "string" }]
+  "narration": "Response text (2-3 paragraphs).",
+  "companions": [{ "name": "Name", "dialogue": "Text" }]
 }`;
 
+    // Execute request
     try {
-        if (!consumeRateLimitToken()) {
-            throw new Error('Too many AI requests in a short period. Please wait a moment and try again.');
-        }
-
-        let text = '';
-        for (let attempt = 0; attempt < AI_RETRY_ATTEMPTS; attempt += 1) {
-            try {
-                const result = await withTimeout(geminiModel.generateContent(prompt), AI_REQUEST_TIMEOUT_MS);
-                const response = await result.response;
-                text = response.text();
-                break;
-            } catch (error) {
-                if (attempt === AI_RETRY_ATTEMPTS - 1) {
-                    throw error;
-                }
-                await delay(300 * (attempt + 1));
-            }
-        }
-
-        const structured = isFeatureEnabled('structuredAiOutput') ? safeParseJson(text) : null;
+        if (!consumeRateLimitToken()) throw new Error('Rate limit exceeded');
+        const result = await withTimeout(geminiModel.generateContent(prompt), AI_REQUEST_TIMEOUT_MS);
+        const response = await result.response;
+        const text = response.text();
+        const structured = safeParseJson(text);
+        const cleanedText = structured?.narration?.trim() || text.replace(/```json/g, '').replace(/```/g, '').trim();
         const companionResponses = sanitizeCompanionResponses(companions, structured?.companions);
-
-        const cleanedText = structured?.narration?.trim() || text.trim();
 
         return {
             text: cleanedText,
-            roll: roll,
-            rollType: analysis.rollType,
-            actionType: analysis.actionType,
-            isSuccess: analysis.requiresRoll ? isSuccess : true,
-            requiresRoll: analysis.requiresRoll,
-            companionResponses: companionResponses.length > 0 ? companionResponses : generateCompanionResponses(companions, analysis.actionType, isSuccess)
+            requiresRoll: false,
+            companionResponses
         };
     } catch (error) {
-        logError('gemini_response_failed', error, { selectedModel: 'gemini' });
-        console.error('Gemini API error:', error);
-        // Fall back to mock response
+        console.error('Gemini Request Error:', error);
+        return generateMockResponse(context);
+    }
+};
+
+// Helper for resolving a roll
+const generateRollResolution = async (context, analysis, rollResult) => {
+    const { character, companions, previousTurns, action } = context;
+    const { total, isSuccess, roll, modifier } = rollResult;
+
+    const companionList = companions && companions.length > 0
+        ? companions.map(c => `${c.name} (${c.race} ${c.class}, ${c.personality} personality)`).join(', ')
+        : 'None';
+
+    const recentHistory = previousTurns.slice(-6).map(turn =>
+        `${turn.type === 'user' ? 'PLAYER' : 'DM'}: ${turn.text}`
+    ).join('\n');
+
+    // Use the analysis passed as argument
+    const actorName = analysis.characterName === 'player' ? character?.name : analysis.characterName;
+
+    const prompt = `You are an expert Dungeon Master. 
+${actorName} just rolled dice to resolve an action.
+
+Action: "${action}"
+Roll: ${roll} + ${modifier} = ${total} (DC ${analysis.dc})
+Result: ${isSuccess ? 'SUCCESS' : 'FAILURE'} ${roll === 20 ? '(CRITICAL SUCCESS!)' : roll === 1 ? '(CRITICAL FAILURE!)' : ''}
+
+## CORE INSTRUCTIONS
+1. **RESOLVE THE ACTION**: Describe the consequence of the roll for ${actorName}.
+   - Success: They achieve their goal.
+   - Failure: They fail, perhaps with complication.
+2. **COMPANIONS**: React to the result.
+
+## CURRENT CONTEXT
+- **Player**: ${character?.name}
+- **Party**: ${companionList}
+- **Situation**: ${recentHistory}
+
+## OUTPUT FORMAT (Strict JSON)
+{
+  "narration": "Consequence text (2-3 paragraphs).",
+  "companions": [{ "name": "Name", "dialogue": "Text" }]
+}`;
+
+    try {
+        if (!consumeRateLimitToken()) throw new Error('Rate limit exceeded');
+        const result = await withTimeout(geminiModel.generateContent(prompt), AI_REQUEST_TIMEOUT_MS);
+        const response = await result.response;
+        const text = response.text();
+        const structured = safeParseJson(text);
+        const cleanedText = structured?.narration?.trim() || text.replace(/```json/g, '').replace(/```/g, '').trim();
+        const companionResponses = sanitizeCompanionResponses(companions, structured?.companions);
+
+        return {
+            text: cleanedText,
+            requiresRoll: true,
+            isSuccess,
+            roll: roll,
+            rollType: analysis.rollType, // Pass back so UI can show the roll result bubble
+            companionResponses
+        };
+    } catch (error) {
+        console.error('Gemini Request Error:', error);
         return generateMockResponse(context);
     }
 };
@@ -525,47 +620,51 @@ const narrativeTemplates = {
     failure: { fumble: ["CRITICAL FAILURE!"], low: ["You fail."], barely: ["So close, yet not enough."] }
 };
 
+// === MOCK AI RESPONSE (OFFLINE MODE) ===
 const generateMockResponse = (context) => {
-    const { character, companions, action } = context;
-    const analysis = analyzeAction(action);
+    const { action, rollResult, companions } = context;
+    const analysis = analyzeAction(action, companions);
 
-    let roll = null;
-    let isSuccess = null;
-    let responseText = '';
-
-    const intro = getRandomElement(narrativeTemplates[analysis.actionType] || narrativeTemplates.exploration);
-
-    if (!analysis.requiresRoll) {
-        responseText = `${intro}\n\nYou: "${action}"\n\n${getRandomElement(narrativeTemplates.trivial)}\n\nWhat would you like to do next?`;
-        isSuccess = true;
-    } else {
-        roll = Math.floor(Math.random() * 20) + 1;
-        let modifier = 0;
-        if (character?.stats && analysis.ability) {
-            modifier = getAbilityModifier(character.stats[analysis.ability] || 10);
-        }
-        const total = roll + modifier;
-        isSuccess = roll === 20 ? true : roll === 1 ? false : total >= analysis.dc;
-
-        let outcome;
-        if (roll === 20) outcome = getRandomElement(narrativeTemplates.success.critical);
-        else if (roll === 1) outcome = getRandomElement(narrativeTemplates.failure.fumble);
-        else if (isSuccess) outcome = getRandomElement(narrativeTemplates.success.normal);
-        else outcome = getRandomElement(narrativeTemplates.failure.barely);
-
-        const rollLabel = analysis.rollType === ROLL_TYPES.ATTACK_ROLL ? 'Attack Roll' : `${analysis.ability?.charAt(0).toUpperCase()}${analysis.ability?.slice(1)} Check`;
-
-        responseText = `${intro}\n\nYou attempt: "${action}"\n\n**${rollLabel}** (DC ${analysis.dc})\n🎲 Roll: ${roll}${modifier >= 0 ? ' + ' : ' - '}${Math.abs(modifier)} = **${total}**\n\n${outcome}\n\nWhat do you do next?`;
+    // CASE 1: Resolving a pending roll
+    if (rollResult) {
+        const actor = analysis.characterName === 'player' ? 'You' : analysis.characterName;
+        return {
+            text: `[MOCK] ${actor} rolled a ${rollResult.total}! The action is resolved with ${rollResult.isSuccess ? 'success' : 'failure'}. The outcome is dramatic.`,
+            requiresRoll: true,
+            isSuccess: rollResult.isSuccess,
+            roll: rollResult.roll,
+            rollType: 'ability_check', // simplified
+            companionResponses: [
+                { name: 'Lyra', dialogue: rollResult.isSuccess ? "Impressive!" : "That could have gone better." }
+            ]
+        };
     }
 
+    // CASE 2: Requesting a roll
+    if (analysis.requiresRoll) {
+        const actor = analysis.characterName === 'player' ? 'you' : analysis.characterName;
+        return {
+            text: `[MOCK] That sounds risky. I need ${actor} to make a ${analysis.ability} check (DC ${analysis.dc}) to see if successful.`,
+            requiresRoll: true,
+            waitingForRoll: true, // Signal UI to prompt user
+            rollParams: {
+                type: analysis.rollType,
+                ability: analysis.ability,
+                dc: analysis.dc,
+                action: action,
+                characterName: analysis.characterName
+            },
+            companionResponses: []
+        };
+    }
+
+    // CASE 3: Normal narrative
     return {
-        text: responseText,
-        roll: roll,
-        rollType: analysis.rollType,
-        actionType: analysis.actionType,
-        isSuccess: isSuccess,
-        requiresRoll: analysis.requiresRoll,
-        companionResponses: generateCompanionResponses(companions, analysis.actionType, isSuccess)
+        text: `[MOCK] You ${action}. The world reacts accordingly. The path ahead is clear.`,
+        requiresRoll: false,
+        companionResponses: [
+            { name: 'Lyra', dialogue: "We should keep moving." }
+        ]
     };
 };
 
@@ -576,7 +675,7 @@ const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
  * Generate a Dungeon Master response
  */
 export const generateDMResponse = async (context, selectedModel = 'auto') => {
-    const { character, companions, previousTurns, action } = context;
+    const { character, companions, previousTurns, action, rollResult } = context;
 
     // Determine which model to use based on user selection
     const useGemini = selectedModel === 'gemini'
@@ -596,7 +695,7 @@ export const generateDMResponse = async (context, selectedModel = 'auto') => {
     } else {
         console.log('📦 Using Mock AI (offline mode)...');
         await delay(500 + Math.random() * 1000);
-        response = generateMockResponse(context);
+        response = generateMockResponse(context); // TODO: Update mock response to support manual rolls if needed
         modelUsed = 'mock';
         logEvent('dm_response_generated', { model: modelUsed, requiresRoll: response.requiresRoll });
     }
@@ -610,11 +709,27 @@ export const generateDMResponse = async (context, selectedModel = 'auto') => {
             rollType: response.rollType,
             actionType: response.actionType,
             requiresRoll: response.requiresRoll,
+            waitingForRoll: response.waitingForRoll, // Pass this flag to UI
+            rollParams: response.rollParams,         // Pass params to UI
             isSuccess: response.isSuccess,
             aiModel: modelUsed,
             timestamp: new Date().toISOString()
         }
     };
+};
+
+/**
+ * Resolve a dice roll by sending it to the AI for narration
+ */
+export const resolveDiceRoll = async (context, rollResult, originalAction) => {
+    // Add roll result to context
+    const fullContext = {
+        ...context,
+        action: originalAction,
+        rollResult: rollResult
+    };
+
+    return generateDMResponse(fullContext, 'gemini');
 };
 
 /**
@@ -630,33 +745,21 @@ export const generateOpeningNarrative = async (adventure, character, selectedMod
 
     if (useGemini) {
         try {
-            const prompt = `You are an exceptional Dungeon Master beginning an epic D&D 5th Edition adventure. Create a CINEMATIC opening that will hook the player immediately.
+            const prompt = `You are a cinematic Dungeon Master starting a new D&D 5e campaign.
 
-Adventure: ${adventure?.name || 'A New Beginning'}
-Setting: ${adventure?.setting || 'A fantastical realm'}
-Description: ${adventure?.description || 'An epic journey awaits'}
+**Adventure**: ${adventure?.name || 'A New Beginning'}
+**Setting**: ${adventure?.setting || 'Unknown Realm'}
+**Hero**: ${character?.name} (${character?.race} ${character?.class})
+**Vibe**: Epic, Atmospheric, Urgent.
 
-Player Character: ${character?.name || 'A brave adventurer'}, a ${character?.race || 'human'} ${character?.class || 'fighter'}
-Personality: ${character?.personality || 'Courageous and determined'}
-Background: ${character?.background || 'Mysterious origins'}
+**Your Task**:
+Write an opening narration that drops the player *in media res* (in the middle of action).
+- **DO NOT** start with "You find yourself in a tavern..."
+- **DO START** with a problem, a threat, or a mystery directly in front of them.
+- **Engage Senses**: The smell of ozone, the grit of sand, the sound of distant war drums.
+- **Call to Action**: End the narration with an immediate crisis that demands a response. "The guard discovers you. What do you do?"
 
-Write an epic opening narration (2-3 paragraphs) that:
-
-1. **HOOK IMMEDIATELY**: Start with action, tension, or mystery - NOT "You find yourself..."
-2. **ENGAGE ALL SENSES**: Include at least 3 sensory details (sights, sounds, smells, textures)
-3. **ESTABLISH ATMOSPHERE**: Weather, lighting, ambient sounds that set the mood
-4. **PERSONALIZE**: Reference the character's race or class in the scene naturally
-5. **HINT AT STAKES**: Something is wrong, something needs doing, danger lurks
-6. **END WITH AGENCY**: Finish with an open question or choice that demands player action
-
-STYLE GUIDELINES:
-- Use vivid, active verbs ("The wind HOWLS" not "There is wind")
-- Create immediate tension or intrigue
-- Make the world feel ALIVE and reactive
-- Avoid clichés like "a chill runs down your spine"
-- Be specific, not generic ("the iron tang of old blood" not "a bad smell")
-
-Make the player EXCITED to type their first action!`;
+Keep it to 2 paragraphs maximum. Make it punchy.`;
 
 
             const result = await geminiModel.generateContent(prompt);

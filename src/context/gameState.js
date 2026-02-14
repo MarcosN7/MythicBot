@@ -36,7 +36,8 @@ export const initialState = {
         darkMode: false,
         soundEnabled: true,
         animationsEnabled: true
-    }
+    },
+    pendingRoll: null // { ability: 'strength', dc: 15, action: 'Kick door' }
 };
 
 export const ActionTypes = {
@@ -55,7 +56,10 @@ export const ActionTypes = {
     START_GAME: 'START_GAME',
     UPDATE_SETTINGS: 'UPDATE_SETTINGS',
     LOAD_STATE: 'LOAD_STATE',
-    RESET_STATE: 'RESET_STATE'
+    LOAD_STATE: 'LOAD_STATE',
+    RESET_STATE: 'RESET_STATE',
+    SET_PENDING_ROLL: 'SET_PENDING_ROLL',
+    CLEAR_PENDING_ROLL: 'CLEAR_PENDING_ROLL'
 };
 
 export function gameReducer(state, action) {
@@ -126,7 +130,12 @@ export function gameReducer(state, action) {
         case ActionTypes.LOAD_STATE:
             return { ...initialState, ...action.state };
         case ActionTypes.RESET_STATE:
+        case ActionTypes.RESET_STATE:
             return initialState;
+        case ActionTypes.SET_PENDING_ROLL:
+            return { ...state, pendingRoll: action.rollData };
+        case ActionTypes.CLEAR_PENDING_ROLL:
+            return { ...state, pendingRoll: null };
         default:
             return state;
     }

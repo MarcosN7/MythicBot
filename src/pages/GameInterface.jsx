@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGame } from '../context/GameContext';
-import { generateDMResponse, generateOpeningNarrative } from '../services/aiService';
+import { generateDMResponse, generateOpeningNarrative, resolveDiceRoll } from '../services/aiService';
 import soundService from '../services/soundService';
 import ChatInterface from '../components/game/ChatInterface';
 import CharacterSheet from '../components/game/CharacterSheet';
@@ -19,13 +19,16 @@ export default function GameInterface() {
         addInventoryItem,
         removeInventoryItem,
         updateSettings,
-        resetGame
+        resetGame,
+        setPendingRoll,
+        clearPendingRoll
     } = useGame();
 
     const [isLoading, setIsLoading] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
     const [sidebarTab, setSidebarTab] = useState('character');
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const initializationRef = useRef(false);
 
     const isGameStarted = state.gameStarted;
     const activeAdventure = state.adventure;
@@ -53,7 +56,8 @@ export default function GameInterface() {
     // Generate opening narrative
     useEffect(() => {
         const initGame = async () => {
-            if (isGameStarted && chatHistoryLength === 0 && activeAdventure) {
+            if (isGameStarted && chatHistoryLength === 0 && activeAdventure && !initializationRef.current) {
+                initializationRef.current = true;
                 setIsLoading(true);
                 const opening = await generateOpeningNarrative(activeAdventure, character, aiModel);
                 addChatMessage({
@@ -94,6 +98,11 @@ export default function GameInterface() {
                 action: text
             }, state.settings.aiModel);
 
+            // Handle Manual Roll Request
+            if (response.metadata?.waitingForRoll) {
+                setPendingRoll(response.metadata.rollParams);
+            }
+
             // Play appropriate sound based on roll result
             if (response.metadata?.roll) {
                 if (response.metadata.roll === 20) {
@@ -121,6 +130,71 @@ export default function GameInterface() {
                 text: 'The Dungeon Master pauses... (An error occurred. Please try again.)',
                 timestamp: new Date().toISOString()
             });
+        }
+        setIsLoading(false);
+    };
+
+    const handleManualDiceRoll = async (rollResult) => {
+        if (!state.pendingRoll) return;
+
+        // Play dice sound
+        soundService.play('diceRoll');
+
+        // Add roll message to chat
+        const total = rollResult.value; // Use 'value' from useDice hook
+        const rollText = `🎲 I rolled a ${total}!`;
+        addChatMessage({
+            type: 'user',
+            text: rollText,
+            timestamp: new Date().toISOString()
+        });
+
+        setIsLoading(true);
+        try {
+            // Resolve the pending roll with AI
+            const response = await resolveDiceRoll({
+                character: state.character,
+                companions: state.companions,
+                previousTurns: state.chatHistory
+            }, {
+                roll: rollResult.value, // Raw roll
+                modifier: 0, // Simplified for now, logic is in AI service or should be passed here
+                total: rollResult.value,
+                isSuccess: true // AI will determine this based on DC
+            }, state.pendingRoll.action);
+
+            // Clear pending roll state
+            clearPendingRoll();
+
+            // Play appropriate sound based on roll result
+            if (response.metadata?.roll) {
+                if (response.metadata.roll === 20) {
+                    soundService.play('critical');
+                } else if (response.metadata.roll === 1) {
+                    soundService.play('fumble');
+                }
+            }
+
+            // Pay message sound
+            soundService.play('message');
+
+            // Add DM response
+            addChatMessage({
+                type: 'ai',
+                text: response.message,
+                roll: response.metadata?.roll,
+                timestamp: response.metadata?.timestamp,
+                companionMessages: response.companionResponses || []
+            });
+
+        } catch (error) {
+            logError('resolve_roll_failed', error, { aiModel: state.settings.aiModel });
+            addChatMessage({
+                type: 'ai',
+                text: 'The Dungeon Master nods... (Roll recorded, but narrative generation failed.)',
+                timestamp: new Date().toISOString()
+            });
+            clearPendingRoll();
         }
         setIsLoading(false);
     };
@@ -190,6 +264,8 @@ export default function GameInterface() {
                         onSendMessage={handleSendMessage}
                         isLoading={isLoading}
                         animationsEnabled={state.settings.animationsEnabled}
+                        pendingRoll={state.pendingRoll}
+                        onManualRoll={handleManualDiceRoll}
                     />
                 </div>
 

@@ -78,10 +78,10 @@ export const validateApiKey = async (key) => {
         const { GoogleGenerativeAI } = await import('@google/generative-ai');
 
         const genAI = new GoogleGenerativeAI(key);
-        const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+        const geminiModel = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
         // Make a minimal test request
-        const result = await model.generateContent('Say "ok" and nothing else.');
+        const result = await geminiModel.generateContent('Say "ok" and nothing else.');
         const response = await result.response;
         const text = response.text();
 
